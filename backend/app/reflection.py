@@ -328,7 +328,9 @@ def _claude_reflection(rows, profile):
     client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
     prompt = _PROMPT.format(
         profile=_profile_blurb(profile),
-        history=_serialize_history(rows),
+        # a reflection is about recent decisions -- bound the prompt so a
+        # long history doesn't balloon token cost.
+        history=_serialize_history(rows[-60:]),
     )
     message = client.messages.create(
         model="claude-sonnet-5",

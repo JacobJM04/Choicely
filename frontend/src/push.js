@@ -44,24 +44,33 @@ export async function enablePush() {
     .catch(() => null)
   if (!cfg || !cfg.enabled || !cfg.public_key) return { ok: false, reason: 'server-disabled' }
 
-  const permission = await Notification.requestPermission()
+  let permission
+  try {
+    permission = await Notification.requestPermission()
+  } catch {
+    return { ok: false, reason: 'denied' }
+  }
   if (permission !== 'granted') return { ok: false, reason: permission }
 
-  const reg = await navigator.serviceWorker.ready
-  const sub =
-    (await reg.pushManager.getSubscription()) ||
-    (await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(cfg.public_key),
-    }))
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const sub =
+      (await reg.pushManager.getSubscription()) ||
+      (await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(cfg.public_key),
+      }))
 
-  const res = await fetch(`${API_BASE}/push/subscribe`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: sub.toJSON() }),
-  })
-  if (!res.ok) return { ok: false, reason: 'save-failed' }
-  return { ok: true }
+    const res = await fetch(`${API_BASE}/push/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    })
+    if (!res.ok) return { ok: false, reason: 'save-failed' }
+    return { ok: true }
+  } catch {
+    return { ok: false, reason: 'subscribe-failed' }
+  }
 }
 
 export async function disablePush() {

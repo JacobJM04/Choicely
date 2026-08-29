@@ -1,6 +1,7 @@
 """SQLite storage for logged decisions."""
 import os
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 # CHOICELY_DB lets a deploy point this at a mounted volume so data survives
@@ -116,10 +117,27 @@ CREATE TABLE IF NOT EXISTS community_outcomes (
 """
 
 
-def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(_DB_PATH)
+@contextmanager
+def get_connection():
+    """A connection that is always committed-or-rolled-back and *closed*.
+
+    Every call site uses `with get_connection() as conn:`. Previously the
+    bare Connection was a context manager for the transaction only -- the
+    socket/handle leaked until GC. This closes it, and turns on WAL +
+    a busy timeout so concurrent requests don't trip "database is locked".
+    """
+    conn = sqlite3.connect(_DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
-    return conn
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -365,12 +383,17 @@ def get_debt_topics(include_seed: bool = False) -> list[dict]:
         return [dict(row) for row in rows]
 
 
-def update_outcome(decision_id: int, outcome: str) -> None:
+def update_outcome(decision_id: int, outcome: str) -> bool:
+    """Record the outcome only if none is set yet. Returns True if this call
+    is the one that recorded it -- the `WHERE outcome IS NULL` makes it
+    race-safe (two concurrent taps can't both win)."""
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE decisions SET outcome = ?, outcome_recorded_at = datetime('now', 'localtime') WHERE id = ?",
+        cursor = conn.execute(
+            "UPDATE decisions SET outcome = ?, outcome_recorded_at = datetime('now', 'localtime') "
+            "WHERE id = ? AND outcome IS NULL",
             (outcome, decision_id),
         )
+        return cursor.rowcount == 1
 
 
 def adopt_chosen_option(decision_id: int, idx: int, option: dict) -> None:
@@ -452,6 +475,12 @@ def mark_checkin_notified(decision_id: int) -> None:
         )
 
 
+# A single-user app never needs many push endpoints; the cap keeps a
+# misbehaving client (or an attacker registering junk endpoints) from
+# growing the table -- and the per-advance notification fan-out -- unbounded.
+_MAX_PUSH_SUBSCRIPTIONS = 20
+
+
 def save_push_subscription(endpoint: str, sub_json: str) -> None:
     with get_connection() as conn:
         conn.execute(
@@ -460,6 +489,14 @@ def save_push_subscription(endpoint: str, sub_json: str) -> None:
             ON CONFLICT(endpoint) DO UPDATE SET sub_json = excluded.sub_json
             """,
             (endpoint, sub_json),
+        )
+        conn.execute(
+            """
+            DELETE FROM push_subscriptions WHERE endpoint NOT IN (
+                SELECT endpoint FROM push_subscriptions ORDER BY created_at DESC LIMIT ?
+            )
+            """,
+            (_MAX_PUSH_SUBSCRIPTIONS,),
         )
 
 

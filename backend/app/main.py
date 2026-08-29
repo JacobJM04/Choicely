@@ -1,9 +1,10 @@
 import json
+import math
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from . import (
     calibration,
@@ -50,26 +51,37 @@ app.add_middleware(
 )
 
 
+# Input bounds -- generous for real use, tight enough that a single request
+# can't spike memory / CPU / LLM token spend.
+_MAX_TEXT = 2000
+_MAX_OPTION = 300
+
+
 class DecisionIn(BaseModel):
-    text: str = ""
+    text: str = Field(default="", max_length=_MAX_TEXT)
     # 2-4 alternatives turns this into a "compare these options" decision.
-    options: list[str] = []
+    options: list[str] = Field(default_factory=list, max_length=8)
+
+    @field_validator("options")
+    @classmethod
+    def _cap_option_length(cls, v: list[str]) -> list[str]:
+        return [o[:_MAX_OPTION] for o in v]
 
 
 class OutcomeIn(BaseModel):
-    outcome: str
+    outcome: str = Field(max_length=16)
     # Required only when the decision was a compare-options one: which
     # option (0-based) the user actually went with.
-    chosen_option: int | None = None
+    chosen_option: int | None = Field(default=None, ge=0, le=7)
     # When true, the (category, outcome) pair is added to the shared pool
     # (see community.py). Anonymous -- no text, no id.
     contribute: bool = False
 
 
 class ProfileIn(BaseModel):
-    name: str
-    answers: list[float]
-    personality_answers: dict[str, float | str] = {}
+    name: str = Field(max_length=80)
+    answers: list[float] = Field(max_length=20)
+    personality_answers: dict[str, float | str] = Field(default_factory=dict, max_length=40)
 
 
 VALID_OUTCOMES = {"good", "neutral", "regret"}
@@ -309,7 +321,13 @@ def record_outcome(decision_id: int, payload: OutcomeIn):
             )
         models.adopt_chosen_option(decision_id, idx, items[idx])
 
-    models.update_outcome(decision_id, payload.outcome)
+    # Race-safe: only one concurrent tap actually records the outcome.
+    if not models.update_outcome(decision_id, payload.outcome):
+        current = models.get_decision(decision_id)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Outcome already recorded as '{current['outcome']}'. It's a one-time tap, not editable.",
+        )
 
     updated = models.get_decision(decision_id)
     if payload.contribute and updated["prior_category_label"] and updated["source"] != "flagged_crisis":
@@ -331,12 +349,23 @@ def get_check_ins():
 
 
 class AdvanceIn(BaseModel):
-    hours: float = 24
+    # bounded: this rewrites every timestamp in the DB, and an out-of-range
+    # or non-finite value makes SQLite write NULLs and brick the data.
+    hours: float = Field(default=24, gt=0, le=24 * 60)
+
+
+# The demo clock is disabled on a real deploy unless CHOICELY_DEMO is set --
+# otherwise anyone could shuffle the timeline. Local dev leaves it on.
+_DEMO_ENABLED = _os.environ.get("CHOICELY_DEMO", "1") not in ("0", "false", "False", "")
 
 
 @app.post("/demo/advance")
 def advance_time(payload: AdvanceIn):
     """Demo aid only: rewind every decision's clock so pending check-ins come due."""
+    if not _DEMO_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found.")
+    if not math.isfinite(payload.hours):
+        raise HTTPException(status_code=400, detail="hours must be a finite number")
     touched = models.shift_time(payload.hours)
     pushed = push.notify_due()
     return {"shifted_hours": payload.hours, "rows_touched": touched, "push": pushed}
@@ -430,16 +459,22 @@ def get_dashboard(include_seed: bool = False):
 # When frontend/dist exists (built by the Dockerfile), serve it from the same
 # origin as the API so there's one thing to deploy. In local dev this block is
 # a no-op and Vite serves the frontend on its own port.
-_DIST = _os.path.join(_os.path.dirname(__file__), "..", "..", "frontend", "dist")
+_DIST = _os.path.realpath(_os.path.join(_os.path.dirname(__file__), "..", "..", "frontend", "dist"))
 if _os.path.isdir(_DIST):
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
 
+    _INDEX = _os.path.join(_DIST, "index.html")
     app.mount("/assets", StaticFiles(directory=_os.path.join(_DIST, "assets")), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
-        candidate = _os.path.join(_DIST, full_path)
-        if full_path and _os.path.isfile(candidate):
-            return FileResponse(candidate)
-        return FileResponse(_os.path.join(_DIST, "index.html"))
+        # Serve a real file only if it resolves to something *inside* _DIST --
+        # otherwise "../../etc/passwd" style paths would escape the build dir.
+        if full_path:
+            candidate = _os.path.realpath(_os.path.join(_DIST, full_path))
+            if (
+                candidate == _DIST or candidate.startswith(_DIST + _os.sep)
+            ) and _os.path.isfile(candidate):
+                return FileResponse(candidate)
+        return FileResponse(_INDEX)

@@ -22,9 +22,12 @@ exactly as before.
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
+import socket
 from pathlib import Path
+from urllib.parse import urlparse
 
 from . import models
 
@@ -39,6 +42,53 @@ _VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:hello@choicely.app")
 # push subscriptions survive a redeploy. VAPID_PRIVATE_KEY is the PEM contents.
 _ENV_PRIVATE = os.environ.get("VAPID_PRIVATE_KEY")
 _ENV_PUBLIC = os.environ.get("VAPID_PUBLIC_KEY")
+
+# The server POSTs the (encrypted) push payload to whatever endpoint the
+# subscription names, so an unrestricted endpoint is an SSRF hole. Only accept
+# the real browser push services; CHOICELY_PUSH_ALLOW_ANY=1 lifts this for
+# local testing against a mock.
+_ALLOWED_PUSH_HOST_SUFFIXES = (
+    "push.services.mozilla.com",
+    "fcm.googleapis.com",
+    "android.googleapis.com",
+    "notify.windows.com",
+    "push.apple.com",
+    "web.push.apple.com",
+)
+_PUSH_ALLOW_ANY = os.environ.get("CHOICELY_PUSH_ALLOW_ANY") in ("1", "true", "True")
+
+
+def _host_allowed(endpoint: str) -> bool:
+    """Cheap check: https + host is one of the real push services. No DNS."""
+    if _PUSH_ALLOW_ANY:
+        return True
+    try:
+        u = urlparse(endpoint)
+    except ValueError:
+        return False
+    if u.scheme != "https" or not u.hostname:
+        return False
+    host = u.hostname.lower()
+    return any(host == s or host.endswith("." + s) for s in _ALLOWED_PUSH_HOST_SUFFIXES)
+
+
+def _endpoint_is_safe(endpoint: str) -> bool:
+    """Full check, used at subscribe time: allowlisted host AND it doesn't
+    resolve to a private / loopback / link-local address (guards against a
+    poisoned DNS record on an allowed domain)."""
+    if _PUSH_ALLOW_ANY:
+        return True
+    if not _host_allowed(endpoint):
+        return False
+    host = urlparse(endpoint).hostname
+    try:
+        for *_, sa in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP):
+            ip = ipaddress.ip_address(sa[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return False
+    except (socket.gaierror, ValueError, OSError):
+        return False
+    return True
 
 try:
     from pywebpush import WebPushException, webpush  # type: ignore
@@ -91,8 +141,12 @@ def config() -> dict:
 
 def add_subscription(sub: dict) -> None:
     endpoint = sub.get("endpoint")
-    if not endpoint:
+    if not endpoint or not isinstance(endpoint, str):
         raise ValueError("subscription is missing an endpoint")
+    if len(endpoint) > 1000 or len(json.dumps(sub)) > 4000:
+        raise ValueError("subscription payload is too large")
+    if not _endpoint_is_safe(endpoint):
+        raise ValueError("endpoint is not a recognised push service")
     models.save_push_subscription(endpoint, json.dumps(sub))
 
 
@@ -103,13 +157,16 @@ def remove_subscription(endpoint: str) -> None:
 def _send(sub_row: dict, payload: dict) -> bool:
     """Push to one subscription. Returns False (and prunes it) if the
     endpoint is gone; raises for transient errors."""
+    if not _host_allowed(sub_row["endpoint"]):  # cheap re-check at send time
+        models.delete_push_subscription(sub_row["endpoint"])
+        return False
     try:
         webpush(
             subscription_info=json.loads(sub_row["sub_json"]),
             data=json.dumps(payload),
             vapid_private_key=str(_PRIVATE_PEM),
             vapid_claims={"sub": _VAPID_SUBJECT},
-            timeout=10,
+            timeout=5,
         )
         return True
     except WebPushException as e:
@@ -120,13 +177,18 @@ def _send(sub_row: dict, payload: dict) -> bool:
         raise
 
 
+# Hard cap on how many endpoints one call will contact -- the table is
+# already capped, but this bounds the worst-case request latency regardless.
+_MAX_FANOUT = 25
+
+
 def broadcast(payload: dict) -> int:
     """Send `payload` to every stored subscription. Returns delivered count."""
     if not _AVAILABLE:
         return 0
     _ensure_keys()
     delivered = 0
-    for row in models.list_push_subscriptions():
+    for row in models.list_push_subscriptions()[:_MAX_FANOUT]:
         try:
             if _send(row, payload):
                 delivered += 1

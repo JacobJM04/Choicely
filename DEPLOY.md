@@ -34,6 +34,8 @@ docker exec <container> python seed_demo_data.py --reset
 | `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | supply the Web Push keypair directly (PEM contents + base64url app-server key) instead of a file, so push subscriptions survive a redeploy on a platform without a volume. Generate a pair by running the container once with a volume and copying `/srv/data/vapid_*`. |
 | `VAPID_SUBJECT` | `mailto:` contact for VAPID claims. Defaults to `mailto:hello@choicely.app`. |
 | `CHOICELY_ORIGINS` | comma-separated extra CORS origins. Only needed for a *split* deploy (frontend and API on different domains); unnecessary for the single-container setup. |
+| `CHOICELY_DEMO` | `1` (default) keeps the `POST /demo/advance` clock endpoint enabled. Set to `0` on a real deploy so visitors can't time-shift the timeline. |
+| `CHOICELY_PUSH_ALLOW_ANY` | `1` disables the push-endpoint allowlist (which otherwise only permits the real FCM / Mozilla / Apple / Windows push hosts). Local testing against a mock push server only — never in production. |
 
 ## Split deploy (frontend and API separate)
 
