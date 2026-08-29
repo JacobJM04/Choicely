@@ -1,0 +1,50 @@
+.demo-controls {
+  position: fixed;
+  right: var(--s3);
+  bottom: var(--s3);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+}
+
+.demo-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-left: 2px;
+}
+
+.demo-controls button {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.demo-controls button:hover:not(:disabled) { border-color: var(--line-2); color: var(--ink); }
+.demo-controls button:disabled { opacity: 0.4; cursor: default; }
+
+.demo-flash {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--ink-inv);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}

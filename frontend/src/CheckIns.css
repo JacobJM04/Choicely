@@ -1,0 +1,75 @@
+.checkins {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--panel);
+  padding: 12px 14px;
+  margin-bottom: var(--s4);
+}
+
+.checkins-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: var(--s2);
+}
+
+.checkins-head .kicker { color: var(--accent); }
+
+.checkins-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: checkin-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes checkin-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkins-dot { animation: none; }
+}
+
+.checkins-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.checkin { padding: var(--s2) 0; }
+.checkin + .checkin { border-top: 1px solid var(--line); }
+
+.checkin-prompt {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.checkin-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s2);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+.checkin-buttons { display: flex; gap: 4px; }
+
+.checkin-buttons button {
+  padding: 4px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+.checkin-buttons button:hover:not(:disabled) { border-color: var(--line-2); color: var(--ink); }
+.checkin-buttons button:disabled { opacity: 0.4; cursor: default; }

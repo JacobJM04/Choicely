@@ -1,0 +1,159 @@
+{
+  "_note": "Synthetic-but-labeled reference dataset used as a 'population prior' for cold-start suggestions. These are illustrative figures inspired by general behavioral-psych findings on regret (e.g. omission vs. commission regret, decision fatigue, social/rest tradeoffs) -- they are NOT drawn from a real personal dataset and must always be surfaced to users as general patterns, never as personalized predictions. high_regret_advice/low_regret_advice are only set on specific (tagged) categories -- the general catch-all categories are too broad to safely auto-resolve. planning_alignment (+1/-1/null) marks whether the measured action is the spontaneous-leaning choice (+1, e.g. skipping/canceling/avoiding) or the planner-leaning choice (-1, e.g. saving/following through) -- used to nudge the prior toward a user's onboarding-survey planning style before personal data exists. null on general catch-all categories: too broad to safely nudge either way.",
+  "entries": [
+    {
+      "decision_type": "health",
+      "tags": ["sleep", "rest", "tired", "bed"],
+      "category_label": "sleep vs. social/obligation tradeoff",
+      "regret_rate": 0.65,
+      "sample_size": 240,
+      "description": "People who skip sleep for social plans or late obligations report regret about 65% of the time.",
+      "high_regret_advice": "go to sleep",
+      "low_regret_advice": "it's fine to stay up",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "health",
+      "tags": ["workout", "gym", "exercise", "leg day", "run", "training"],
+      "category_label": "skipping exercise",
+      "regret_rate": 0.58,
+      "sample_size": 310,
+      "description": "People who skip a planned workout report regret about 58% of the time.",
+      "high_regret_advice": "do the workout anyway",
+      "low_regret_advice": "it's fine to skip it",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "health",
+      "tags": ["eat", "meal", "food", "breakfast", "lunch", "dinner", "skip meal"],
+      "category_label": "skipping meals",
+      "regret_rate": 0.71,
+      "sample_size": 180,
+      "description": "People who skip a meal when hungry report regret about 71% of the time.",
+      "high_regret_advice": "eat something",
+      "low_regret_advice": "it's fine to skip it",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "health",
+      "tags": [],
+      "category_label": "general health/routine decisions",
+      "regret_rate": 0.55,
+      "sample_size": 500,
+      "description": "Across health-related routine decisions, people report regret about 55% of the time when they deviate from their usual habit.",
+      "high_regret_advice": null,
+      "low_regret_advice": null,
+      "planning_alignment": null
+    },
+    {
+      "decision_type": "social",
+      "tags": ["cancel", "flake", "skip plans", "stay home", "bail"],
+      "category_label": "canceling social plans",
+      "regret_rate": 0.45,
+      "sample_size": 260,
+      "description": "People who cancel social plans last minute report regret about 45% of the time.",
+      "high_regret_advice": "keep the plan",
+      "low_regret_advice": "it's fine to cancel",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "social",
+      "tags": ["trip", "weekend", "party", "hang out", "go out", "outing"],
+      "category_label": "going out despite low energy",
+      "regret_rate": 0.38,
+      "sample_size": 220,
+      "description": "People who go out despite feeling low-energy report regret about 38% of the time -- lower than expected, since going tends to be regretted less than skipping.",
+      "high_regret_advice": "stay in this time",
+      "low_regret_advice": "go, you'll probably be glad you did",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "social",
+      "tags": [],
+      "category_label": "general social decisions",
+      "regret_rate": 0.42,
+      "sample_size": 400,
+      "description": "Across social decisions in general, people report regret about 42% of the time.",
+      "high_regret_advice": null,
+      "low_regret_advice": null,
+      "planning_alignment": null
+    },
+    {
+      "decision_type": "financial",
+      "tags": ["buy", "purchase", "spend", "impulse", "shopping"],
+      "category_label": "impulse purchases",
+      "regret_rate": 0.62,
+      "sample_size": 300,
+      "description": "People who make impulse purchases report regret about 62% of the time.",
+      "high_regret_advice": "don't buy it",
+      "low_regret_advice": "go ahead and buy it",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "financial",
+      "tags": ["save", "saving", "invest", "budget"],
+      "category_label": "choosing to save/invest over spending",
+      "regret_rate": 0.22,
+      "sample_size": 190,
+      "description": "People who choose to save or invest instead of spending report regret about 22% of the time.",
+      "high_regret_advice": "spend it if you need to",
+      "low_regret_advice": "save it",
+      "planning_alignment": -1
+    },
+    {
+      "decision_type": "financial",
+      "tags": [],
+      "category_label": "general financial decisions",
+      "regret_rate": 0.40,
+      "sample_size": 350,
+      "description": "Across financial decisions in general, people report regret about 40% of the time.",
+      "high_regret_advice": null,
+      "low_regret_advice": null,
+      "planning_alignment": null
+    },
+    {
+      "decision_type": "interpersonal",
+      "tags": ["conflict", "confront", "argument", "tell them", "difficult conversation"],
+      "category_label": "avoiding a difficult conversation",
+      "regret_rate": 0.55,
+      "sample_size": 210,
+      "description": "People who avoid a difficult conversation report regret about 55% of the time.",
+      "high_regret_advice": "have the conversation",
+      "low_regret_advice": "it's fine to let it go",
+      "planning_alignment": 1
+    },
+    {
+      "decision_type": "interpersonal",
+      "tags": ["text back", "reply", "reach out", "message", "call them"],
+      "category_label": "reaching out first",
+      "regret_rate": 0.20,
+      "sample_size": 230,
+      "description": "People who reach out first after a disagreement or silence report regret about 20% of the time.",
+      "high_regret_advice": "wait before reaching out",
+      "low_regret_advice": "go ahead and reach out",
+      "planning_alignment": -1
+    },
+    {
+      "decision_type": "interpersonal",
+      "tags": [],
+      "category_label": "general interpersonal decisions",
+      "regret_rate": 0.45,
+      "sample_size": 400,
+      "description": "Across interpersonal decisions in general, people report regret about 45% of the time.",
+      "high_regret_advice": null,
+      "low_regret_advice": null,
+      "planning_alignment": null
+    },
+    {
+      "decision_type": "routine",
+      "tags": [],
+      "category_label": "general routine decisions",
+      "regret_rate": 0.35,
+      "sample_size": 500,
+      "description": "Across everyday routine decisions, people report regret about 35% of the time.",
+      "high_regret_advice": null,
+      "low_regret_advice": null,
+      "planning_alignment": null
+    }
+  ]
+}

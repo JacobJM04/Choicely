@@ -1,0 +1,177 @@
+/* ============================================================================
+   Choicely — design tokens
+
+   An instrument, not a brochure. Near-monochrome; structure carried by
+   hairlines, not boxes or shadows. One quiet accent, used only for links,
+   focus, and the active marker. Every number is monospaced and tabular.
+   ========================================================================== */
+
+:root {
+  /* surfaces */
+  --bg: #fbfbfc;
+  --panel: #ffffff;
+  --panel-2: #f3f4f6;      /* sunken / inset */
+  --panel-3: #ececef;
+
+  /* ink */
+  --ink: #10131a;
+  --ink-2: #565d6b;
+  --ink-3: #878e9c;
+  --ink-inv: #fbfbfc;
+
+  /* lines */
+  --line: #e7e8ec;
+  --line-2: #d9dbe0;
+
+  /* accent — a restrained blue; links, focus, the active tab marker */
+  --accent: #3355cc;
+  --accent-2: #2a49b5;
+  --accent-wash: #eef1fb;
+
+  /* semantic — muted, never competing with the accent */
+  --pos: #2f7d55;
+  --neg: #b4503f;
+  --warn: #8a6224;
+  --pos-wash: #edf5f0;
+  --neg-wash: #f8efed;
+  --warn-wash: #f7f1e6;
+
+  /* forecast marks */
+  --m-good: #2f7d55;
+  --m-neutral: #9aa0ac;
+  --m-regret: #b4503f;
+
+  /* spacing — 4px base */
+  --s-1: 2px;  --s0: 4px;  --s1: 8px;  --s2: 12px; --s3: 16px;
+  --s4: 20px;  --s5: 24px; --s6: 32px; --s7: 40px; --s8: 56px;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 9px;
+
+  --font: "Hanken Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --maxw: 1120px;
+  --tab-h: 48px;
+
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv05", "ss03";
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0c0f;
+    --panel: #121418;
+    --panel-2: #16191e;
+    --panel-3: #1c2026;
+
+    --ink: #e8eaee;
+    --ink-2: #99a0ac;
+    --ink-3: #6a717c;
+    --ink-inv: #0b0c0f;
+
+    --line: #232830;
+    --line-2: #2e343d;
+
+    --accent: #6f8bf0;
+    --accent-2: #849cf3;
+    --accent-wash: #171b2b;
+
+    --pos: #58a97e;
+    --neg: #d07a68;
+    --warn: #c39a5c;
+    --pos-wash: #12201a;
+    --neg-wash: #221613;
+    --warn-wash: #201a10;
+
+    --m-good: #58a97e;
+    --m-neutral: #7d838e;
+    --m-regret: #d07a68;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0b0c0f;
+  --panel: #121418;
+  --panel-2: #16191e;
+  --panel-3: #1c2026;
+  --ink: #e8eaee;
+  --ink-2: #99a0ac;
+  --ink-3: #6a717c;
+  --ink-inv: #0b0c0f;
+  --line: #232830;
+  --line-2: #2e343d;
+  --accent: #6f8bf0;
+  --accent-2: #849cf3;
+  --accent-wash: #171b2b;
+  --pos: #58a97e;
+  --neg: #d07a68;
+  --warn: #c39a5c;
+  --pos-wash: #12201a;
+  --neg-wash: #221613;
+  --warn-wash: #201a10;
+  --m-good: #58a97e;
+  --m-neutral: #7d838e;
+  --m-regret: #d07a68;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink-2);
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+button { font-family: inherit; }
+
+::selection { background: var(--accent-wash); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- shared primitives ---- */
+
+.mono,
+.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* small uppercase mono section label — used everywhere */
+.kicker {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0;
+}
+

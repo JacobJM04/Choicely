@@ -1,0 +1,23 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local database (auto-created; seed with seed_demo_data.py)
+backend/data/*.db
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+
+# Env overrides
+.env
+.env.local
+*.local
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
