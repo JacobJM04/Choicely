@@ -10,6 +10,7 @@ import Reflection from './Reflection'
 import DemoControls from './DemoControls'
 import ThemeToggle from './ThemeToggle'
 import { NotifyNudge } from './Notifications'
+import { isContributing } from './community'
 import { API_BASE } from './api'
 import { prose, when } from './text'
 
@@ -18,6 +19,17 @@ const OUTCOME_PAST = { good: 'Went well', neutral: 'Was fine', regret: 'Regrette
 
 function Pct({ value }) {
   return <span className="num">{Math.round((value ?? 0) * 100)}%</span>
+}
+
+function CommunityNote({ decision }) {
+  if (!decision.community_n || decision.reference_regret_rate == null) return null
+  return (
+    <p className="community-note">
+      reference <span className="num">{Math.round(decision.reference_regret_rate * 100)}%</span> ·{' '}
+      {decision.community_n} shared outcomes →{' '}
+      <span className="num">{Math.round(decision.prior_regret_rate * 100)}%</span>
+    </p>
+  )
 }
 
 function PredictionBox({ decision }) {
@@ -44,6 +56,7 @@ function PredictionBox({ decision }) {
       <div className="prior-box">
         <span className="prior-tag">Population</span>
         <p>{prose(decision.prior_description)}</p>
+        <CommunityNote decision={decision} />
       </div>
     )
   }
@@ -64,6 +77,7 @@ function PredictionBox({ decision }) {
           Population <Pct value={decision.prior_regret_rate} />, adjusted for your onboarding
           answers. No history in this category yet.
         </p>
+        <CommunityNote decision={decision} />
       </div>
     )
   }
@@ -431,7 +445,7 @@ function App() {
   async function handleRecordOutcome(decisionId, outcome, chosenOption) {
     setError('')
     try {
-      const body = { outcome }
+      const body = { outcome, contribute: isContributing() }
       if (chosenOption != null) body.chosen_option = chosenOption
       const res = await fetch(`${API_BASE}/decisions/${decisionId}/outcome`, {
         method: 'POST',

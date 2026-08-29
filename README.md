@@ -124,6 +124,19 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   strongest three are returned -- with an affirming one guaranteed a slot
   if the data supports it. Same shape either way. Sits below the mental-
   load banner.
+- **Community priors** (`backend/app/community.py`, `GET /community/stats`,
+  Settings opt-in): the reference dataset is a documented synthetic prior;
+  this layer lets real opt-in outcomes correct it. Each shared row is a
+  category label and an outcome -- no text, no id. Once a category has
+  >=12 shared outcomes, the population rate Choicely quotes shifts
+  partway toward the community rate: `effective = reference * (1 - k) +
+  community * k`, `k = 0.55 * n / (n + 35)` so the shift is real but
+  capped (community never fully overrides the reference). New decision
+  cards show the provenance ("reference 62% · 50 shared outcomes ->
+  66%"); the forecast tab deliberately keeps showing the untouched
+  reference rate. Contributing is a per-browser toggle; outcomes are sent
+  with `contribute: true` on the outcome POST. The pool is seeded with a
+  labelled starter set (`COMMUNITY_SEEDS` in `seed_demo_data.py`).
 - **Crisis guardrails** (`backend/app/safety.py`, screened in
   `POST /decisions`, `SafetyBox` on the card): some things typed into a
   decision box are not decisions a regret model should score. Two tiers:

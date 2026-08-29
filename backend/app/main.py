@@ -8,6 +8,7 @@ from . import (
     calibration,
     checkins,
     classifier,
+    community,
     dataset,
     debt,
     gametheory,
@@ -53,6 +54,9 @@ class OutcomeIn(BaseModel):
     # Required only when the decision was a compare-options one: which
     # option (0-based) the user actually went with.
     chosen_option: int | None = None
+    # When true, the (category, outcome) pair is added to the shared pool
+    # (see community.py). Anonymous -- no text, no id.
+    contribute: bool = False
 
 
 class ProfileIn(BaseModel):
@@ -203,6 +207,8 @@ def create_decision(payload: DecisionIn):
             "breakdown_json": breakdown_json,
             "topic_id": existing_topic_id,
             "safety_json": json.dumps(flag) if flag else None,
+            "reference_regret_rate": prior.get("reference_regret_rate"),
+            "community_n": prior.get("community_n") or 0,
         }
     )
 
@@ -297,7 +303,12 @@ def record_outcome(decision_id: int, payload: OutcomeIn):
         models.adopt_chosen_option(decision_id, idx, items[idx])
 
     models.update_outcome(decision_id, payload.outcome)
-    return _serialize(models.get_decision(decision_id))
+
+    updated = models.get_decision(decision_id)
+    if payload.contribute and updated["prior_category_label"] and updated["source"] != "flagged_crisis":
+        community.contribute(updated["prior_category_label"], payload.outcome)
+
+    return _serialize(updated)
 
 
 @app.get("/reflection")
@@ -388,6 +399,12 @@ def get_track_record(include_seed: bool = True):
 def get_triggers(include_seed: bool = True):
     """Conditions under which the user regrets decisions more (or less) than usual."""
     return triggers.regret_triggers(include_seed)
+
+
+@app.get("/community/stats")
+def get_community_stats():
+    """Size of the shared-outcome pool and how much of it is real contributions."""
+    return community.stats()
 
 
 @app.get("/dashboard")

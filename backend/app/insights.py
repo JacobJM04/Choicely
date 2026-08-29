@@ -83,7 +83,12 @@ def category_forecast(category_label: str, include_seed: bool = True) -> dict | 
     if latest is None:
         return None
 
-    population_prior = latest["prior_regret_rate"]
+    # The forecast's "everyone" line is the reference-dataset rate, held
+    # steady regardless of the community-adjusted number a freshly-logged
+    # decision in this category may have stored (see community.py). Falls
+    # back to the stored rate for categories not in the reference set.
+    _ref_entry = _ENTRY_BY_CATEGORY.get(category_label, {})
+    population_prior = _ref_entry.get("regret_rate", latest["prior_regret_rate"])
     profile_prior = latest["profile_adjusted_regret_rate"]
     personality_prior = latest["personality_adjusted_regret_rate"]
     # The starting point the blend actually works from -- the last adjustment

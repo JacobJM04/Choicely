@@ -57,6 +57,16 @@ sideways 90% of the time, against 20% the rest of the day. Her evening
 calls are the opposite. It checked time pressure, busy days, and
 back-and-forth too; time of day is what moved the needle for her."
 
+### Optional beat — is the data real? (use if asked "where do the population numbers come from?")
+
+Type `should I return the shirt I impulse bought` → **Log it**. Under the
+estimate: "reference 62% · 50 shared outcomes → 66%". "The base is a
+documented reference set. But every user who opts in (Settings → Shared
+outcomes) adds their result — category and outcome only, never the text —
+and the number Choicely quotes drifts toward what people actually report.
+50 shared outcomes moved impulse-purchase regret from 62 to 66. The more
+people use it, the less hypothetical that number is."
+
 ### Optional beat — guardrails (use if asked "what stops it giving terrible advice?")
 
 Type `should I take out a payday loan to cover rent this month` → **Log it**.

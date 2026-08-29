@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './CheckIns.css'
 import { API_BASE } from './api'
 import { prose } from './text'
+import { isContributing } from './community'
 
 const OUTCOMES = [
   { key: 'good', label: 'Went well' },
@@ -30,7 +31,7 @@ export default function CheckIns({ refreshKey, onResolved }) {
     // Drop it from the list right away; the parent refresh reconciles.
     setItems((prev) => prev.filter((it) => it.id !== id))
     try {
-      const body = { outcome }
+      const body = { outcome, contribute: isContributing() }
       if (chosenOption != null) body.chosen_option = chosenOption
       await fetch(`${API_BASE}/decisions/${id}/outcome`, {
         method: 'POST',

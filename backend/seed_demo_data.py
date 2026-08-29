@@ -144,7 +144,7 @@ def _insert_option_seed(header: str, option_texts: list[str], days_ago: int, hou
 def _insert_pending(text: str, decision_type: str, stakes: str, urgency: str, hours_ago: int) -> None:
     from app import gametheory
 
-    prior = dataset.get_prior(decision_type, text)
+    prior = dataset.get_prior(decision_type, text, use_community=False)
     profile_adjusted, personality_adjusted, effective_rate = _adjusted_rates(prior, decision_type, stakes)
     prediction = regret.predict(prior["category_label"], effective_rate)
     logged = datetime.now() - timedelta(hours=hours_ago)
@@ -200,7 +200,7 @@ def _insert_seeded(
     days_ago: int,
     hour: int = 12,
 ) -> None:
-    prior = dataset.get_prior(decision_type, text)
+    prior = dataset.get_prior(decision_type, text, use_community=False)
     profile_adjusted, personality_adjusted, effective_rate = _adjusted_rates(prior, decision_type, stakes)
 
     prediction = regret.predict(prior["category_label"], effective_rate)
@@ -279,6 +279,33 @@ DEMO_PROFILE = {
 }
 
 
+# Shared-outcome pool starter set (community.py). Labelled is_seed=1. Rates are
+# a plausible drift off the reference dataset so logging a fresh decision in one
+# of these categories visibly shifts the quoted population number.
+#   (category_label, count, regret_rate)
+COMMUNITY_SEEDS = [
+    ("skipping meals", 46, 0.80),
+    ("skipping exercise", 54, 0.45),          # real people regret this less than the textbook
+    ("going out despite low energy", 40, 0.29),
+    ("sleep vs. social/obligation tradeoff", 44, 0.72),
+    ("impulse purchases", 50, 0.74),
+    ("avoiding a difficult conversation", 42, 0.68),
+    ("canceling social plans", 36, 0.54),
+]
+
+
+def _seed_community() -> None:
+    # Deterministic split so the pooled mean outcome score lands exactly on
+    # `rate` -- an RNG draw at these small counts wandered too far off target.
+    for category, count, rate in COMMUNITY_SEEDS:
+        n_neutral = round(count * 0.14)
+        n_regret = max(0, min(count - n_neutral, round(count * rate - n_neutral * 0.5)))
+        n_good = count - n_regret - n_neutral
+        for outcome, k in (("regret", n_regret), ("neutral", n_neutral), ("good", n_good)):
+            for _ in range(k):
+                models.add_community_outcome(category, outcome, is_seed=1)
+
+
 def _seed_profile() -> None:
     from app import personality, profile as profile_mod
 
@@ -292,6 +319,8 @@ def seed() -> None:
 
     if models.get_profile() is None:
         _seed_profile()
+
+    _seed_community()
 
     for text, outcome, days_ago, hour in WORKOUT_SEEDS:
         _insert_seeded(text, "health", "low", "low", outcome, days_ago, hour)
@@ -324,7 +353,8 @@ def reset() -> None:
     with models.get_connection() as conn:
         conn.execute("DELETE FROM decisions")
         conn.execute("DELETE FROM user_profile")
-        conn.execute("DELETE FROM sqlite_sequence WHERE name = 'decisions'")
+        conn.execute("DELETE FROM community_outcomes")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('decisions', 'community_outcomes')")
     seed()
 
 

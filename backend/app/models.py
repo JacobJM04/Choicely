@@ -82,6 +82,10 @@ _NEW_COLUMNS = {
         # message/resources when the text tripped a guardrail; NULL otherwise.
         # A "crisis" tier decision carries no prediction at all.
         "safety_json": "TEXT",
+        # Community-prior provenance (see community.py): the untouched
+        # reference-dataset rate, and how many shared outcomes moved it.
+        "reference_regret_rate": "REAL",
+        "community_n": "INTEGER",
     },
 }
 
@@ -89,6 +93,20 @@ _PUSH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     endpoint TEXT PRIMARY KEY,
     sub_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+"""
+
+# Anonymised outcomes shared by users who opted in (see community.py). Just a
+# category label and the outcome -- no decision text, no user id, nothing that
+# ties a row back to a person. Seeded with a labelled starter set so the pool
+# isn't empty at launch.
+_COMMUNITY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS community_outcomes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category_label TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    is_seed INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 """
@@ -104,6 +122,7 @@ def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(_SCHEMA)
         conn.executescript(_PUSH_SCHEMA)
+        conn.executescript(_COMMUNITY_SCHEMA)
         for table, columns in _NEW_COLUMNS.items():
             for column, col_type in columns.items():
                 try:
@@ -258,8 +277,8 @@ def insert_decision(decision: dict) -> int:
                  personal_regret_estimate, profile_adjusted_regret_rate, personality_adjusted_regret_rate,
                  blended_regret_estimate, confidence, personal_data_points, auto_resolution,
                  breakdown_json, topic_id, is_seed, outcome_due_at, outcome_recorded_at,
-                 options_json, safety_json)
-            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 options_json, safety_json, reference_regret_rate, community_n)
+            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 decision["text"],
@@ -287,6 +306,8 @@ def insert_decision(decision: dict) -> int:
                 decision.get("outcome_recorded_at"),
                 decision.get("options_json"),
                 decision.get("safety_json"),
+                decision.get("reference_regret_rate"),
+                decision.get("community_n"),
             ),
         )
         return cursor.lastrowid
@@ -441,6 +462,33 @@ def list_push_subscriptions() -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute("SELECT endpoint, sub_json FROM push_subscriptions").fetchall()
         return [dict(row) for row in rows]
+
+
+def add_community_outcome(category_label: str, outcome: str, is_seed: int = 0) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO community_outcomes (category_label, outcome, is_seed) VALUES (?, ?, ?)",
+            (category_label, outcome, is_seed),
+        )
+
+
+def community_outcome_counts() -> dict[str, list[str]]:
+    """category_label -> list of outcome strings across the whole shared pool."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT category_label, outcome FROM community_outcomes").fetchall()
+    pool: dict[str, list[str]] = {}
+    for row in rows:
+        pool.setdefault(row["category_label"], []).append(row["outcome"])
+    return pool
+
+
+def community_totals() -> dict:
+    with get_connection() as conn:
+        total = conn.execute("SELECT COUNT(*) AS n FROM community_outcomes").fetchone()["n"]
+        contributed = conn.execute(
+            "SELECT COUNT(*) AS n FROM community_outcomes WHERE is_seed = 0"
+        ).fetchone()["n"]
+    return {"total": total, "contributed": contributed}
 
 
 def shift_time(hours: float) -> int:
