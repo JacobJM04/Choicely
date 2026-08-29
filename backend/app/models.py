@@ -71,6 +71,13 @@ _NEW_COLUMNS = {
         # When a due check-in was pushed as a notification, so we don't
         # re-notify on the next clock advance. NULL = never pushed.
         "notified_at": "TEXT",
+        # For a "compare these options" decision: a JSON list of option dicts
+        # (text + its own per-option regret estimate). NULL for an ordinary
+        # yes/no decision. chosen_option_idx is set when the outcome is
+        # recorded -- at which point the decision adopts that option's
+        # category so it flows through the forecast like any other.
+        "options_json": "TEXT",
+        "chosen_option_idx": "INTEGER",
     },
 }
 
@@ -246,8 +253,8 @@ def insert_decision(decision: dict) -> int:
                  prior_category_label, prior_regret_rate, prior_sample_size, prior_description,
                  personal_regret_estimate, profile_adjusted_regret_rate, personality_adjusted_regret_rate,
                  blended_regret_estimate, confidence, personal_data_points, auto_resolution,
-                 breakdown_json, topic_id, is_seed, outcome_due_at, outcome_recorded_at)
-            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 breakdown_json, topic_id, is_seed, outcome_due_at, outcome_recorded_at, options_json)
+            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 decision["text"],
@@ -273,6 +280,7 @@ def insert_decision(decision: dict) -> int:
                 decision.get("is_seed", 0),
                 decision.get("outcome_due_at"),
                 decision.get("outcome_recorded_at"),
+                decision.get("options_json"),
             ),
         )
         return cursor.lastrowid
@@ -325,6 +333,45 @@ def update_outcome(decision_id: int, outcome: str) -> None:
         conn.execute(
             "UPDATE decisions SET outcome = ?, outcome_recorded_at = datetime('now', 'localtime') WHERE id = ?",
             (outcome, decision_id),
+        )
+
+
+def adopt_chosen_option(decision_id: int, idx: int, option: dict) -> None:
+    """When a 'compare options' decision resolves, the decision becomes a
+    decision about the option that was picked -- it takes on that option's
+    category and estimate so it flows through the forecast, calibration and
+    debt views exactly like an ordinary decision would have."""
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE decisions SET
+                chosen_option_idx = ?,
+                prior_category_label = ?,
+                prior_regret_rate = ?,
+                prior_sample_size = ?,
+                prior_description = ?,
+                profile_adjusted_regret_rate = ?,
+                personality_adjusted_regret_rate = ?,
+                blended_regret_estimate = ?,
+                confidence = ?,
+                personal_data_points = ?,
+                source = ?
+            WHERE id = ?
+            """,
+            (
+                idx,
+                option.get("category_label"),
+                option.get("prior_regret_rate"),
+                option.get("prior_sample_size"),
+                option.get("prior_description"),
+                option.get("profile_adjusted_regret_rate"),
+                option.get("personality_adjusted_regret_rate"),
+                option.get("regret_estimate"),
+                option.get("confidence"),
+                option.get("data_points", 0),
+                option.get("source", "options"),
+                decision_id,
+            ),
         )
 
 

@@ -25,9 +25,10 @@ Seeds:
      advance the demo clock once (bottom-right control) and Choicely
      proactively asks how they went.
 """
+import json
 from datetime import datetime, timedelta
 
-from app import checkins, dataset, debt, models, personality, profile as profile_mod, regret
+from app import checkins, dataset, debt, models, options, personality, profile as profile_mod, regret
 
 # (text, outcome, days_ago, hour) -- hour spreads the history across the day so
 # the regret-trigger analysis has a real time-of-day signal to find. Maya's
@@ -100,6 +101,44 @@ def _adjusted_rates(prior: dict, decision_type: str, stakes: str):
     )
     effective = personality_adjusted or profile_adjusted or prior["regret_rate"]
     return profile_adjusted, personality_adjusted, effective
+
+
+# One live "compare these options" decision, unresolved -- shows the per-option
+# regret estimates side by side. Maya's instinct is to skip (she's inaction-
+# averse, so skipping reads as regret-prone), but her own outcomes say she's
+# almost always glad she pushed herself out, so Choicely leans the other way.
+OPTION_SEED = (
+    "the weekend trip -- everyone's going and I'm wiped",
+    ["go for the whole weekend", "go just for Saturday", "skip it, I need the rest"],
+    2,   # days ago
+    19,  # hour
+)
+
+
+def _insert_option_seed(header: str, option_texts: list[str], days_ago: int, hour: int) -> None:
+    profile_row = models.get_profile()
+    analysis = options.analyze(option_texts, profile_row)
+    overall = options.overall_classification(header, option_texts, profile_row, analysis["items"])
+    logged = (datetime.now() - timedelta(days=days_ago)).replace(hour=hour, minute=15, second=0, microsecond=0)
+    due = logged + timedelta(hours=checkins.due_delay_hours(
+        overall["decision_type"], overall["stakes"], overall["urgency"]
+    ))
+    best = min(o["regret_estimate"] for o in analysis["items"])
+    decision_id = models.insert_decision(
+        {
+            "text": header,
+            "decision_type": overall["decision_type"],
+            "stakes": overall["stakes"],
+            "urgency": overall["urgency"],
+            "timestamp": logged.strftime("%Y-%m-%d %H:%M:%S"),
+            "outcome_due_at": due.strftime("%Y-%m-%d %H:%M:%S"),
+            "source": "options",
+            "blended_regret_estimate": best,
+            "options_json": json.dumps(analysis),
+            "is_seed": 0,
+        }
+    )
+    models.set_topic_id(decision_id, decision_id)
 
 
 def _insert_pending(text: str, decision_type: str, stakes: str, urgency: str, hours_ago: int) -> None:
@@ -269,11 +308,13 @@ def seed() -> None:
     for text, dtype, stakes, urgency, hours_ago in PENDING_SEEDS:
         _insert_pending(text, dtype, stakes, urgency, hours_ago)
 
+    _insert_option_seed(*OPTION_SEED)
+
     total = len(WORKOUT_SEEDS) + len(BREAKFAST_SEEDS) + len(SOCIAL_SEEDS) + len(DEBT_SEEDS)
     print(f"Seeded profile '{DEMO_PROFILE['name']}' + {total} decisions "
           f"({len(WORKOUT_SEEDS)} workout, {len(BREAKFAST_SEEDS)} breakfast, "
           f"{len(SOCIAL_SEEDS)} social, {len(DEBT_SEEDS)} debt) plus {len(PENDING_SEEDS)} "
-          f"pending (advance the demo clock once to see check-ins).")
+          f"pending + 1 compare-options (advance the demo clock once to see check-ins).")
 
 
 def reset() -> None:

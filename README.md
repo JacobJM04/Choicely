@@ -124,6 +124,17 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   strongest three are returned -- with an affirming one guaranteed a slot
   if the data supports it. Same shape either way. Sits below the mental-
   load banner.
+- **Compare options** (`backend/app/options.py`, `POST /decisions` with an
+  `options` list, `frontend` composer + `OptionsBox`): a decision doesn't
+  have to be yes/no. Give Choicely 2-4 alternatives and each one is run
+  through the full cold-start pipeline on its own -- classified for its
+  type, matched to a population prior, adjusted for planning style and
+  personality, blended with any personal history for that category -- so
+  every option gets its own regret estimate and the lowest is Choicely's
+  lean. Recording the outcome takes a `chosen_option`; at that point the
+  decision *adopts* that option (`models.adopt_chosen_option`) -- it takes
+  on the chosen category and estimate and from then on behaves like an
+  ordinary resolved decision (shows in the forecast, feeds calibration).
 - **Demo clock** (`POST /demo/advance`, `frontend/src/DemoControls.jsx`):
   a bottom-right control that rewinds every decision's clock by 1 or 3
   days so pending check-ins come due on stage. Demo aid only -- shown when

@@ -14,6 +14,7 @@ from . import (
     insights,
     load,
     models,
+    options,
     personality,
     profile,
     push,
@@ -41,11 +42,16 @@ def startup() -> None:
 
 
 class DecisionIn(BaseModel):
-    text: str
+    text: str = ""
+    # 2-4 alternatives turns this into a "compare these options" decision.
+    options: list[str] = []
 
 
 class OutcomeIn(BaseModel):
     outcome: str
+    # Required only when the decision was a compare-options one: which
+    # option (0-based) the user actually went with.
+    chosen_option: int | None = None
 
 
 class ProfileIn(BaseModel):
@@ -61,6 +67,8 @@ def _serialize(row: dict) -> dict:
     row = dict(row)
     breakdown_json = row.pop("breakdown_json", None)
     row["breakdown"] = json.loads(breakdown_json) if breakdown_json else None
+    options_json = row.pop("options_json", None)
+    row["options"] = json.loads(options_json) if options_json else None
     return row
 
 
@@ -103,6 +111,10 @@ def create_profile(payload: ProfileIn):
 
 @app.post("/decisions")
 def create_decision(payload: DecisionIn):
+    option_texts = [o.strip() for o in payload.options if o.strip()]
+    if len(option_texts) >= 2:
+        return _create_option_decision(payload.text.strip(), option_texts[:4])
+
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Decision text cannot be empty.")
@@ -194,6 +206,35 @@ def create_decision(payload: DecisionIn):
     return _serialize(models.get_decision(decision_id))
 
 
+def _create_option_decision(header: str, option_texts: list[str]) -> dict:
+    profile_row = models.get_profile()
+    analysis = options.analyze(option_texts, profile_row)
+    overall = options.overall_classification(header, option_texts, profile_row, analysis["items"])
+
+    text = header or "Choosing between: " + ", ".join(option_texts)
+    best = min(o["regret_estimate"] for o in analysis["items"])
+
+    decision_id = models.insert_decision(
+        {
+            "text": text,
+            "decision_type": overall["decision_type"],
+            "stakes": overall["stakes"],
+            "urgency": overall["urgency"],
+            "outcome_due_at": checkins.outcome_due_at(
+                overall["decision_type"], overall["stakes"], overall["urgency"]
+            ),
+            "source": "options",
+            # category is unset until an option is chosen (see
+            # models.adopt_chosen_option); the estimate shown meanwhile is the
+            # best any option can do.
+            "blended_regret_estimate": best,
+            "options_json": json.dumps(analysis),
+        }
+    )
+    models.set_topic_id(decision_id, decision_id)
+    return _serialize(models.get_decision(decision_id))
+
+
 @app.get("/decisions")
 def get_decisions(include_seed: bool = False):
     return [_serialize(row) for row in models.list_decisions(include_seed)]
@@ -212,6 +253,16 @@ def record_outcome(decision_id: int, payload: OutcomeIn):
             status_code=409,
             detail=f"Outcome already recorded as '{existing['outcome']}'. It's a one-time tap, not editable.",
         )
+
+    if existing["options_json"]:
+        items = json.loads(existing["options_json"])["items"]
+        idx = payload.chosen_option
+        if idx is None or not (0 <= idx < len(items)):
+            raise HTTPException(
+                status_code=400,
+                detail="This was a compare-options decision -- pass chosen_option (0-based) for the one you went with.",
+            )
+        models.adopt_chosen_option(decision_id, idx, items[idx])
 
     models.update_outcome(decision_id, payload.outcome)
     return _serialize(models.get_decision(decision_id))

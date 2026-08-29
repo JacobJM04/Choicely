@@ -299,6 +299,198 @@
   font-family: var(--mono);
 }
 
+/* ---- compare-options composer ---- */
+
+.compare-toggle {
+  margin: -14px 0 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.compare-toggle:hover { text-decoration: underline; }
+
+.composer-compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: var(--s2);
+  margin-bottom: var(--s5);
+}
+
+.composer-compare input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 8px 10px;
+}
+.composer-compare input:focus { outline: none; border-color: var(--accent); }
+.compare-context { margin-bottom: 2px; }
+
+.compare-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.compare-opt-n {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  background: var(--panel-2);
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.compare-opt input { flex: 1; }
+
+.compare-opt-x {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.compare-opt-x:hover { color: var(--neg); }
+
+.compare-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin-top: 4px;
+}
+.compare-actions-spacer { flex: 1; }
+
+.compare-add {
+  border: 1px dashed var(--line-2);
+  background: none;
+  color: var(--ink-2);
+  font-size: 11.5px;
+  font-family: var(--mono);
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.compare-add:hover { border-color: var(--accent); color: var(--accent); }
+
+.compare-cancel {
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.compare-cancel:hover { color: var(--ink); }
+
+.compare-actions button[type='submit'] {
+  border: none;
+  background: var(--ink);
+  color: var(--ink-inv);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.compare-actions button[type='submit']:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- options box (on a decision card) ---- */
+
+.badge.badge-compare { background: var(--accent-wash); color: var(--accent); }
+
+.options-box {
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.option-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.option-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.option-text { font-size: 12.5px; color: var(--ink); }
+.option-row.chosen .option-text { font-weight: 600; }
+.option-row:not(.chosen):not(.lean) .option-text { color: var(--ink-2); }
+
+.option-pct { font-size: 11px; color: var(--ink-3); flex-shrink: 0; }
+
+.option-bar {
+  height: 5px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+.option-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ink-3);
+  opacity: 0.5;
+}
+.option-row.lean .option-bar-fill { background: var(--pos); opacity: 0.75; }
+.option-row.chosen .option-bar-fill { background: var(--accent); opacity: 0.75; }
+
+.option-flag {
+  margin-left: 7px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--pos);
+  white-space: nowrap;
+}
+.option-flag.chosen-flag { color: var(--accent); }
+
+.option-lean-note {
+  margin: var(--s2) 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.outcome-prompt.option-pick { flex-wrap: wrap; }
+.outcome-prompt.option-pick .outcome-buttons { flex-wrap: wrap; }
+
+.option-back {
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.option-back:hover { color: var(--ink); }
+
 .empty-state {
   font-size: 13px;
   color: var(--ink-3);

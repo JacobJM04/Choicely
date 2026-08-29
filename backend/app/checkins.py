@@ -11,6 +11,7 @@ The delay is deliberately short for urgent/routine things and longer for
 high-stakes ones -- you know within hours whether skipping breakfast was a
 mistake; whether quitting the club was takes days.
 """
+import json
 from datetime import datetime, timedelta
 
 _TS_FMT = "%Y-%m-%d %H:%M:%S"
@@ -53,13 +54,27 @@ def _relative(logged_at: str | None) -> str:
 
 
 def check_in_prompt(decision: dict) -> dict:
+    option_texts = None
+    if decision.get("options_json"):
+        try:
+            option_texts = [o["text"] for o in json.loads(decision["options_json"])["items"]]
+        except (ValueError, KeyError, TypeError):
+            option_texts = None
+
+    if option_texts:
+        joined = ", ".join(option_texts[:-1]) + f" or {option_texts[-1]}"
+        prompt = f'You were choosing between {joined}. Which did you go with -- and how did it land?'
+    else:
+        prompt = f'You were weighing: "{decision["text"]}". How did it land?'
+
     return {
         "id": decision["id"],
         "text": decision["text"],
         "decision_type": decision["decision_type"],
         "stakes": decision["stakes"],
         "logged_relative": _relative(decision["timestamp"]),
-        "prompt": f'You were weighing: "{decision["text"]}". How did it land?',
+        "prompt": prompt,
+        "options": option_texts,
         "had_prediction": decision.get("source") in ("blended", "personal", "profile_prior", "personality_prior"),
         "predicted_regret": decision.get("blended_regret_estimate"),
     }

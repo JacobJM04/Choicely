@@ -57,6 +57,17 @@ sideways 90% of the time, against 20% the rest of the day. Her evening
 calls are the opposite. It checked time pressure, busy days, and
 back-and-forth too; time of day is what moved the needle for her."
 
+### Optional beat — comparing options (use if asked "what if it's not yes/no?")
+
+On the timeline, the **"the weekend trip"** card. "Not every decision is
+yes/no. Here Maya's weighing three ways to handle the weekend. Choicely
+runs each one through the same machine — go for the whole thing reads at
+29% regret for her, just Saturday at 35%, skipping at 76%, because her
+history says she rarely regrets pushing herself out and her profile says
+skipping is the risky move. It leans toward going. When she records which
+one she picked, that option becomes the decision — it flows into the
+forecast for that category like any other."
+
 ### Optional beat — interpersonal (use if asked "what about hard decisions with other people?")
 
 Type `should I bring up the noise thing with my roommate` → **Log it**. The card

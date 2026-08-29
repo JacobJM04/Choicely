@@ -108,7 +108,92 @@ function BreakdownBox({ breakdown }) {
   )
 }
 
+function OptionsBox({ decision, onRecordOutcome }) {
+  const { items, lean_idx, clear } = decision.options
+  const resolved = decision.chosen_option_idx != null
+  const [picked, setPicked] = useState(null)
+  const best = items[lean_idx]
+  const runnerUp = items
+    .map((o, i) => ({ o, i }))
+    .filter((x) => x.i !== lean_idx)
+    .sort((a, b) => a.o.regret_estimate - b.o.regret_estimate)[0]
+
+  return (
+    <div className="options-box">
+      <span className="prior-tag">
+        {resolved ? 'You compared' : 'Comparing'} {items.length} options
+      </span>
+
+      <ul className="option-list">
+        {items.map((o, i) => {
+          const isChosen = resolved && decision.chosen_option_idx === i
+          const isLean = i === lean_idx && !resolved
+          return (
+            <li key={i} className={`option-row${isChosen ? ' chosen' : ''}${isLean ? ' lean' : ''}`}>
+              <div className="option-main">
+                <span className="option-text">
+                  {o.text}
+                  {isLean && <span className="option-flag">lowest regret</span>}
+                  {isChosen && (
+                    <span className="option-flag chosen-flag">
+                      you went with this
+                      {decision.outcome ? ` · ${OUTCOME_PAST[decision.outcome].toLowerCase()}` : ''}
+                    </span>
+                  )}
+                </span>
+                <span className="option-pct num">{Math.round(o.regret_estimate * 100)}%</span>
+              </div>
+              <div className="option-bar">
+                <div className="option-bar-fill" style={{ width: `${Math.max(3, o.regret_estimate * 100)}%` }} />
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+
+      {!resolved && (
+        <p className="option-lean-note">
+          {clear
+            ? `Choicely leans toward "${best.text}" — the lowest regret of the ${items.length}.`
+            : `"${best.text}" edges it, but it's close with "${runnerUp.o.text}".`}
+        </p>
+      )}
+
+      {!resolved && picked === null && (
+        <div className="outcome-prompt option-pick">
+          <span>Which did you go with?</span>
+          <div className="outcome-buttons">
+            {items.map((o, i) => (
+              <button key={i} onClick={() => setPicked(i)}>
+                {o.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!resolved && picked !== null && (
+        <div className="outcome-prompt">
+          <span>“{items[picked].text}” — how did it land?</span>
+          <div className="outcome-buttons">
+            {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
+              <button key={key} onClick={() => onRecordOutcome(decision.id, key, picked)}>
+                {label}
+              </button>
+            ))}
+            <button className="option-back" onClick={() => setPicked(null)}>
+              change
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DecisionCard({ decision, onRecordOutcome }) {
+  const isOptions = !!decision.options
+
   return (
     <div className="decision-card">
       <div className="decision-card-top">
@@ -119,31 +204,38 @@ function DecisionCard({ decision, onRecordOutcome }) {
           )}
         </p>
         <div className="badges">
+          {isOptions && <span className="badge badge-compare">compare</span>}
           <span className="badge">{decision.decision_type}</span>
           <span className="badge">{decision.stakes}</span>
           {decision.urgency === 'high' && <span className="badge badge-urgent">urgent</span>}
         </div>
       </div>
 
-      <PredictionBox decision={decision} />
-      <BreakdownBox breakdown={decision.breakdown} />
-
-      {decision.outcome ? (
-        <div className="outcome-recorded">
-          <span className={`dot ${decision.outcome}`} />
-          {OUTCOME_PAST[decision.outcome] ?? decision.outcome}
-        </div>
+      {isOptions ? (
+        <OptionsBox decision={decision} onRecordOutcome={onRecordOutcome} />
       ) : (
-        <div className="outcome-prompt">
-          <span>How did it go?</span>
-          <div className="outcome-buttons">
-            {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-              <button key={key} onClick={() => onRecordOutcome(decision.id, key)}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <>
+          <PredictionBox decision={decision} />
+          <BreakdownBox breakdown={decision.breakdown} />
+
+          {decision.outcome ? (
+            <div className="outcome-recorded">
+              <span className={`dot ${decision.outcome}`} />
+              {OUTCOME_PAST[decision.outcome] ?? decision.outcome}
+            </div>
+          ) : (
+            <div className="outcome-prompt">
+              <span>How did it go?</span>
+              <div className="outcome-buttons">
+                {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
+                  <button key={key} onClick={() => onRecordOutcome(decision.id, key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <div className="timestamp">{when(decision.timestamp)}</div>
@@ -244,6 +336,8 @@ function App() {
   const [decisions, setDecisions] = useState([])
   const [debtItems, setDebtItems] = useState([])
   const [text, setText] = useState('')
+  const [compareMode, setCompareMode] = useState(false)
+  const [options, setOptions] = useState(['', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [refreshTick, setRefreshTick] = useState(0)
@@ -274,20 +368,24 @@ function App() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    const compareOpts = options.map((o) => o.trim()).filter(Boolean)
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (compareMode ? compareOpts.length < 2 : !trimmed) return
     setLoading(true)
     setError('')
     try {
+      const body = compareMode ? { text: trimmed, options: compareOpts } : { text: trimmed }
       const res = await fetch(`${API_BASE}/decisions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Request failed')
       const created = await res.json()
       setDecisions((prev) => [created, ...prev])
       setText('')
+      setOptions(['', ''])
+      setCompareMode(false)
       bumpRefresh()
     } catch {
       setError('Something went wrong logging that. Try again.')
@@ -296,13 +394,15 @@ function App() {
     }
   }
 
-  async function handleRecordOutcome(decisionId, outcome) {
+  async function handleRecordOutcome(decisionId, outcome, chosenOption) {
     setError('')
     try {
+      const body = { outcome }
+      if (chosenOption != null) body.chosen_option = chosenOption
       const res = await fetch(`${API_BASE}/decisions/${decisionId}/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome }),
+        body: JSON.stringify(body),
       })
       // 409 = an outcome was already recorded (double-tap / another tab). The
       // decision is in a valid state; just resync rather than showing an error.
@@ -386,18 +486,89 @@ function App() {
                 <p>Log a decision. Choicely classifies it, estimates the regret, and follows up.</p>
               </div>
 
-              <form className="composer" onSubmit={handleSubmit}>
-                <input
-                  type="text"
-                  placeholder="should I skip leg day today"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  disabled={loading}
-                />
-                <button type="submit" disabled={loading || !text.trim()}>
-                  Log it
+              {compareMode ? (
+                <form className="composer-compare" onSubmit={handleSubmit}>
+                  <input
+                    type="text"
+                    className="compare-context"
+                    placeholder="what's the decision? (optional)"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    disabled={loading}
+                  />
+                  {options.map((o, i) => (
+                    <div key={i} className="compare-opt">
+                      <span className="compare-opt-n">{String.fromCharCode(65 + i)}</span>
+                      <input
+                        type="text"
+                        placeholder={`option ${String.fromCharCode(65 + i)}`}
+                        value={o}
+                        onChange={(e) =>
+                          setOptions((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))
+                        }
+                        disabled={loading}
+                      />
+                      {options.length > 2 && (
+                        <button
+                          type="button"
+                          className="compare-opt-x"
+                          onClick={() => setOptions((prev) => prev.filter((_, j) => j !== i))}
+                          aria-label="Remove option"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="compare-actions">
+                    {options.length < 4 && (
+                      <button
+                        type="button"
+                        className="compare-add"
+                        onClick={() => setOptions((prev) => [...prev, ''])}
+                      >
+                        + option
+                      </button>
+                    )}
+                    <span className="compare-actions-spacer" />
+                    <button
+                      type="button"
+                      className="compare-cancel"
+                      onClick={() => {
+                        setCompareMode(false)
+                        setOptions(['', ''])
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || options.filter((o) => o.trim()).length < 2}
+                    >
+                      Compare
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form className="composer" onSubmit={handleSubmit}>
+                  <input
+                    type="text"
+                    placeholder="should I skip leg day today"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    disabled={loading}
+                  />
+                  <button type="submit" disabled={loading || !text.trim()}>
+                    Log it
+                  </button>
+                </form>
+              )}
+
+              {!compareMode && (
+                <button className="compare-toggle" onClick={() => setCompareMode(true)}>
+                  …or compare a few options
                 </button>
-              </form>
+              )}
 
               {error && <p className="error">{error}</p>}
 
