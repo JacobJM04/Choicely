@@ -15,6 +15,19 @@ reference -- k tops out at MAX_WEIGHT no matter how big the pool gets.
 """
 from . import models, regret
 
+# Starter pool so the shared-outcome layer isn't empty on a fresh install.
+# (category_label, count, mean_regret_rate) -- a plausible drift off the
+# reference dataset. Seeded once by models.init_db() when the table is empty.
+STARTER_POOL = [
+    ("skipping meals", 46, 0.80),
+    ("skipping exercise", 54, 0.45),
+    ("going out despite low energy", 40, 0.29),
+    ("sleep vs. social/obligation tradeoff", 44, 0.72),
+    ("impulse purchases", 50, 0.74),
+    ("avoiding a difficult conversation", 42, 0.68),
+    ("canceling social plans", 36, 0.54),
+]
+
 # Community outcomes cap out at this share of the blended rate.
 MAX_WEIGHT = 0.55
 # n at which the community view carries ~a third weight (MAX_WEIGHT * n/(n+HALF_N)).
@@ -57,6 +70,21 @@ def effective_prior(category_label: str, reference_rate: float) -> dict:
 def contribute(category_label: str, outcome: str) -> None:
     if category_label and outcome in regret.OUTCOME_SCORES:
         models.add_community_outcome(category_label, outcome, is_seed=0)
+
+
+def ensure_seeded() -> None:
+    """Populate the shared pool from STARTER_POOL if it's empty. Deterministic
+    split so each category's pooled mean lands on its target rate."""
+    if models.community_totals()["total"] > 0:
+        return
+    rows: list[tuple[str, str, int]] = []
+    for category, count, rate in STARTER_POOL:
+        n_neutral = round(count * 0.14)
+        n_regret = max(0, min(count - n_neutral, round(count * rate - n_neutral * 0.5)))
+        n_good = count - n_regret - n_neutral
+        for outcome, k in (("regret", n_regret), ("neutral", n_neutral), ("good", n_good)):
+            rows.extend((category, outcome, 1) for _ in range(k))
+    models.add_community_outcomes_bulk(rows)
 
 
 def stats() -> dict:

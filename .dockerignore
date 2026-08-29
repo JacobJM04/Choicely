@@ -1,0 +1,12 @@
+**/.venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/data/*.db
+backend/data/vapid_*
+frontend/dist
+.git
+.gitignore
+*.md
+!README.md

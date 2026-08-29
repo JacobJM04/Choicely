@@ -42,6 +42,24 @@ VITE_API_BASE=http://localhost:8001
 (restart `npm run dev` after changing it). The API origin is centralized in
 `frontend/src/api.js`.
 
+### Tests
+
+```
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+Covers the regret blend, the crisis screen, the community-prior math, the
+compare-options pipeline, and the main API flows. Each test runs against
+its own throwaway SQLite file (`tests/conftest.py`).
+
+### One-container build (API + frontend together)
+
+```
+docker build -t choicely . && docker run -p 8000:8000 -v choicely-data:/srv/data choicely
+```
+FastAPI serves the built React app from the same origin. See **DEPLOY.md**.
+
 ## Claude API
 
 `backend/app/classifier.py` calls the real Claude API when `ANTHROPIC_API_KEY`
@@ -136,7 +154,8 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   66%"); the forecast tab deliberately keeps showing the untouched
   reference rate. Contributing is a per-browser toggle; outcomes are sent
   with `contribute: true` on the outcome POST. The pool is seeded with a
-  labelled starter set (`COMMUNITY_SEEDS` in `seed_demo_data.py`).
+  labelled starter set (`community.STARTER_POOL`, applied by `init_db`
+  when the table is empty).
 - **Crisis guardrails** (`backend/app/safety.py`, screened in
   `POST /decisions`, `SafetyBox` on the card): some things typed into a
   decision box are not decisions a regret model should score. Two tiers:
@@ -147,10 +166,10 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   **sensitive** match (payday loans, gambling savings, cashing out
   retirement) still shows the estimate, with a banner above it naming who
   to talk to. Conservative phrase matching (a false positive is a kind
-  message with a hotline; a false negative isn't survivable); the Claude
-  classifier path returns the same verdict when a key is set. Crisis
-  notes are held out of the forecast, calibration, triggers, debt, and
-  mental-load accounting.
+  message with a hotline; a false negative isn't survivable), with a
+  Claude screen tried first when `ANTHROPIC_API_KEY` is set and the phrase
+  matcher as fallback. Crisis notes are held out of the forecast,
+  calibration, triggers, debt, and mental-load accounting.
 - **Compare options** (`backend/app/options.py`, `POST /decisions` with an
   `options` list, `frontend` composer + `OptionsBox`): a decision doesn't
   have to be yes/no. Give Choicely 2-4 alternatives and each one is run

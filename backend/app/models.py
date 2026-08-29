@@ -1,8 +1,12 @@
 """SQLite storage for logged decisions."""
+import os
 import sqlite3
 from pathlib import Path
 
-_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "choicely.db"
+# CHOICELY_DB lets a deploy point this at a mounted volume so data survives
+# redeploys; defaults to the repo's data/ dir for local use.
+_DB_PATH = Path(os.environ.get("CHOICELY_DB") or (Path(__file__).resolve().parent.parent / "data" / "choicely.db"))
+_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS decisions (
@@ -129,6 +133,12 @@ def init_db() -> None:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
                 except sqlite3.OperationalError:
                     pass  # column already exists
+
+    # Seed the shared-outcome pool on a fresh DB. Imported here to avoid a
+    # module-load cycle (community -> models).
+    from . import community
+
+    community.ensure_seeded()
 
 
 def get_profile() -> dict | None:
@@ -469,6 +479,15 @@ def add_community_outcome(category_label: str, outcome: str, is_seed: int = 0) -
         conn.execute(
             "INSERT INTO community_outcomes (category_label, outcome, is_seed) VALUES (?, ?, ?)",
             (category_label, outcome, is_seed),
+        )
+
+
+def add_community_outcomes_bulk(rows: list[tuple[str, str, int]]) -> None:
+    """rows of (category_label, outcome, is_seed) -- one connection for the lot."""
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT INTO community_outcomes (category_label, outcome, is_seed) VALUES (?, ?, ?)",
+            rows,
         )
 
 

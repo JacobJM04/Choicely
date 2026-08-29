@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,22 +26,28 @@ from . import (
     triggers,
 )
 
-app = FastAPI(title="Choicely API")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    models.init_db()
+    yield
+
+
+app = FastAPI(title="Choicely API", lifespan=lifespan)
+
+# CORS origins: any localhost port for dev (Vite hops 5173 -> 5174 -> ... when a
+# port is taken), plus anything in CHOICELY_ORIGINS (comma-separated) for a
+# deployed frontend.
+import os as _os
+
+_extra_origins = [o.strip() for o in _os.environ.get("CHOICELY_ORIGINS", "").split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    # Vite falls back to 5174, 5175, ... whenever 5173 is already taken (this
-    # bit us mid-development), so match any localhost dev port rather than
-    # hardcoding one.
+    allow_origins=_extra_origins,
     allow_origin_regex=r"http://localhost:\d+",
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup() -> None:
-    models.init_db()
 
 
 class DecisionIn(BaseModel):
@@ -417,3 +424,22 @@ def get_dashboard(include_seed: bool = False):
         }
         for topic in topics
     ]
+
+
+# --- static frontend (single-container deploy) ----------------------------
+# When frontend/dist exists (built by the Dockerfile), serve it from the same
+# origin as the API so there's one thing to deploy. In local dev this block is
+# a no-op and Vite serves the frontend on its own port.
+_DIST = _os.path.join(_os.path.dirname(__file__), "..", "..", "frontend", "dist")
+if _os.path.isdir(_DIST):
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/assets", StaticFiles(directory=_os.path.join(_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        candidate = _os.path.join(_DIST, full_path)
+        if full_path and _os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_os.path.join(_DIST, "index.html"))

@@ -23,16 +23,22 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from pathlib import Path
 
 from . import models
 
-_DATA = Path(__file__).resolve().parent.parent / "data"
+_DATA = Path(os.environ.get("CHOICELY_DATA") or (Path(__file__).resolve().parent.parent / "data"))
 _PRIVATE_PEM = _DATA / "vapid_private.pem"
 _PUBLIC_TXT = _DATA / "vapid_appserverkey.txt"
 
 # mailto: contact required by the Web Push spec for VAPID claims.
-_VAPID_SUBJECT = "mailto:hello@choicely.app"
+_VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:hello@choicely.app")
+
+# A deploy without a persistent volume can pass the keypair in as env vars so
+# push subscriptions survive a redeploy. VAPID_PRIVATE_KEY is the PEM contents.
+_ENV_PRIVATE = os.environ.get("VAPID_PRIVATE_KEY")
+_ENV_PUBLIC = os.environ.get("VAPID_PUBLIC_KEY")
 
 try:
     from pywebpush import WebPushException, webpush  # type: ignore
@@ -50,6 +56,11 @@ def available() -> bool:
 
 
 def _ensure_keys() -> None:
+    if _ENV_PRIVATE and _ENV_PUBLIC:
+        _DATA.mkdir(parents=True, exist_ok=True)
+        if not _PRIVATE_PEM.exists():
+            _PRIVATE_PEM.write_text(_ENV_PRIVATE)
+        return
     if _PRIVATE_PEM.exists() and _PUBLIC_TXT.exists():
         return
     from cryptography.hazmat.primitives import serialization
@@ -68,6 +79,8 @@ def _ensure_keys() -> None:
 def public_key() -> str | None:
     if not _AVAILABLE:
         return None
+    if _ENV_PUBLIC:
+        return _ENV_PUBLIC.strip()
     _ensure_keys()
     return _PUBLIC_TXT.read_text().strip()
 

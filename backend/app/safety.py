@@ -12,11 +12,13 @@ Two tiers:
   - "sensitive" -> the estimate still shows, with a banner above it saying
                    this is bigger than an average and naming who to talk to.
 
-Heuristic phrase matching here; the Claude classifier path (classifier.py)
-also returns a safety verdict when a key is set. Conservative on the
-crisis tier -- a false positive shows someone a kind message with a
-hotline number, which is a survivable mistake; a false negative is not.
+When ANTHROPIC_API_KEY is set, screen() asks Claude first and falls back
+to the phrase matcher on any error. Conservative on the crisis tier -- a
+false positive shows someone a kind message with a hotline number, which
+is a survivable mistake; a false negative is not.
 """
+import json
+import os
 import re
 
 _FINDAHELPLINE = {"label": "findahelpline.com", "url": "https://findahelpline.com",
@@ -87,7 +89,7 @@ _MEDICAL = re.compile(
 _FINANCIAL = re.compile(
     r"\b(payday\s+loan|payday\s+lend|title\s+loan|loan\s+shark|"
     r"max(ing)?\s+out\s+my\s+credit\s+card|gambl\w*\s+(my|the)\s+(savings|rent|paycheck)|"
-    r"bet\s+my\s+savings|cash\s+out\s+my\s+(401k|retirement|pension)|"
+    r"bet\s+my\s+savings|cash(ing)?\s+out\s+my\s+(401k|retirement|pension|savings)|"
     r"borrow\s+against\s+my\s+(401k|house|home)|pawn\s+my)",
     re.I,
 )
@@ -102,6 +104,27 @@ _SENSITIVE = [
 ]
 
 
+_TIER_BY_CATEGORY = {c: "crisis" for c, _ in _CRISIS}
+_TIER_BY_CATEGORY.update({c: "sensitive" for c, _ in _SENSITIVE})
+
+_ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+_CLAUDE_PROMPT = """A person typed the following into a decision-tracking app that
+normally predicts how much they'll regret a choice. Some inputs are not choices
+the app should score at all.
+
+Input: "{text}"
+
+Reply with ONLY a JSON object: {{"category": "<one of: self_harm, abuse, medical,
+financial, none>"}}
+  - self_harm: any mention of suicide, wanting to die, or hurting themselves
+  - abuse: they may be in an unsafe/abusive situation
+  - medical: this could be a medical emergency
+  - financial: a ruinous money move (payday loan, gambling savings, cashing out retirement)
+  - none: an ordinary everyday decision
+When unsure between a crisis category and none, choose the crisis category."""
+
+
 def _flag(tier: str, category: str) -> dict:
     return {
         "tier": tier,
@@ -111,12 +134,7 @@ def _flag(tier: str, category: str) -> dict:
     }
 
 
-def screen(*texts: str) -> dict | None:
-    """Return a safety flag for the highest-severity match across all the
-    given strings (decision text plus any option texts), or None."""
-    blob = "  ".join(t for t in texts if t)
-    if not blob.strip():
-        return None
+def _heuristic_screen(blob: str) -> dict | None:
     for category, pattern in _CRISIS:
         if pattern.search(blob):
             return _flag("crisis", category)
@@ -124,3 +142,34 @@ def screen(*texts: str) -> dict | None:
         if pattern.search(blob):
             return _flag("sensitive", category)
     return None
+
+
+def _claude_screen(blob: str) -> dict | None:
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+    message = client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=60,
+        messages=[{"role": "user", "content": _CLAUDE_PROMPT.format(text=blob[:600])}],
+    )
+    raw = message.content[0].text
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    category = json.loads(match.group(0) if match else raw).get("category", "none")
+    if category in _TIER_BY_CATEGORY:
+        return _flag(_TIER_BY_CATEGORY[category], category)
+    return None
+
+
+def screen(*texts: str) -> dict | None:
+    """Return a safety flag for the highest-severity match across all the
+    given strings (decision text plus any option texts), or None."""
+    blob = "  ".join(t for t in texts if t)
+    if not blob.strip():
+        return None
+    if _ANTHROPIC_API_KEY:
+        try:
+            return _claude_screen(blob)
+        except Exception:
+            pass
+    return _heuristic_screen(blob)
