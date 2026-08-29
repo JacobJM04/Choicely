@@ -9,6 +9,7 @@ import CheckIns from './CheckIns'
 import Reflection from './Reflection'
 import DemoControls from './DemoControls'
 import ThemeToggle from './ThemeToggle'
+import { NotifyNudge } from './Notifications'
 import { API_BASE } from './api'
 import { prose, when } from './text'
 
@@ -401,6 +402,7 @@ function App() {
               {error && <p className="error">{error}</p>}
 
               <CheckIns refreshKey={refreshTick} onResolved={bumpRefresh} />
+              <NotifyNudge decisionCount={decisions.length} />
               <MentalLoad refreshKey={refreshTick} />
               <Reflection refreshKey={refreshTick} />
 

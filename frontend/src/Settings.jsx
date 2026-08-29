@@ -1,4 +1,5 @@
 import { summarizeProfile } from './Onboarding'
+import { NotificationsPanel } from './Notifications'
 
 export default function Settings({ profile, onRetake, onBack }) {
   return (
@@ -9,6 +10,7 @@ export default function Settings({ profile, onRetake, onBack }) {
         <p className="page-sub">{summarizeProfile(profile)}</p>
         <button className="btn-primary" onClick={onRetake}>Retake the survey</button>
         <button className="btn-ghost" onClick={onBack}>Back</button>
+        <NotificationsPanel />
       </div>
     </div>
   )

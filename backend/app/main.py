@@ -16,6 +16,7 @@ from . import (
     models,
     personality,
     profile,
+    push,
     reflection,
     regret,
 )
@@ -235,7 +236,42 @@ class AdvanceIn(BaseModel):
 def advance_time(payload: AdvanceIn):
     """Demo aid only: rewind every decision's clock so pending check-ins come due."""
     touched = models.shift_time(payload.hours)
-    return {"shifted_hours": payload.hours, "rows_touched": touched}
+    pushed = push.notify_due()
+    return {"shifted_hours": payload.hours, "rows_touched": touched, "push": pushed}
+
+
+class PushSubscriptionIn(BaseModel):
+    subscription: dict
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str
+
+
+@app.get("/push/config")
+def push_config():
+    """VAPID public key + whether push is available server-side."""
+    return push.config()
+
+
+@app.post("/push/subscribe")
+def push_subscribe(payload: PushSubscriptionIn):
+    try:
+        push.add_subscription(payload.subscription)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@app.post("/push/unsubscribe")
+def push_unsubscribe(payload: PushUnsubscribeIn):
+    push.remove_subscription(payload.endpoint)
+    return {"ok": True}
+
+
+@app.post("/push/test")
+def push_test():
+    return push.send_test()
 
 
 @app.get("/load")

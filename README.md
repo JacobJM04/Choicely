@@ -14,6 +14,7 @@ Backend (FastAPI, port 8000):
 ```
 cd backend
 .venv\Scripts\activate
+pip install -r requirements.txt   # first run / after pulling: adds pywebpush
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -88,6 +89,21 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   ("you were weighing X -- how did it land?"). Answering feeds the same
   outcome pipeline as the manual buttons. This is the promise the old
   "I'll check back in a day or two" copy couldn't keep.
+- **Installable PWA + push** (`frontend/public/manifest.webmanifest`,
+  `frontend/public/sw.js`, `backend/app/push.py`): Choicely is an
+  installable app (manifest + service worker + offline shell), and it can
+  push a check-in notification with the tab closed. Settings has the
+  opt-in (`frontend/src/Notifications.jsx`); a dismissible nudge on the
+  timeline surfaces it once there's a decision to be reminded about. Web
+  Push uses VAPID keys auto-generated to `backend/data/vapid_*` on first
+  run (gitignored; the browser fetches the public key from
+  `GET /push/config`). Subscriptions live in a `push_subscriptions`
+  table; `push.notify_due()` fires one notification per newly-due
+  check-in and is idempotent (a `notified_at` column). With no running
+  scheduler, it's called from `POST /demo/advance` -- advancing the demo
+  clock now also buzzes any installed client. Everything degrades
+  cleanly: unsupported browser, denied permission, or `pywebpush` not
+  installed all fall back to the in-app banner.
 - **Weekly reflection** (`backend/app/reflection.py`, `GET /reflection`,
   `frontend/src/Reflection.jsx`): a short plain-language read on recent
   decisions. With `ANTHROPIC_API_KEY` set, Claude writes it from a compact

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import './TrackRecord.css'
 import { API_BASE } from './api'
-import { prose, when } from './text'
+import { prose } from './text'
 
 const pct = (v) => `${Math.round((v ?? 0) * 100)}%`
 const pts = (v) => Math.round((v ?? 0) * 100)

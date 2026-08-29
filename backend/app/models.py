@@ -68,8 +68,19 @@ _NEW_COLUMNS = {
     "decisions": {
         "personality_adjusted_regret_rate": "REAL",
         "outcome_due_at": "TEXT",
+        # When a due check-in was pushed as a notification, so we don't
+        # re-notify on the next clock advance. NULL = never pushed.
+        "notified_at": "TEXT",
     },
 }
+
+_PUSH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    endpoint TEXT PRIMARY KEY,
+    sub_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+"""
 
 
 def get_connection() -> sqlite3.Connection:
@@ -81,6 +92,7 @@ def get_connection() -> sqlite3.Connection:
 def init_db() -> None:
     with get_connection() as conn:
         conn.executescript(_SCHEMA)
+        conn.executescript(_PUSH_SCHEMA)
         for table, columns in _NEW_COLUMNS.items():
             for column, col_type in columns.items():
                 try:
@@ -345,6 +357,36 @@ def get_due_check_ins() -> list[dict]:
             ORDER BY outcome_due_at ASC
             """
         ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def mark_checkin_notified(decision_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE decisions SET notified_at = datetime('now', 'localtime') WHERE id = ?",
+            (decision_id,),
+        )
+
+
+def save_push_subscription(endpoint: str, sub_json: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO push_subscriptions (endpoint, sub_json) VALUES (?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET sub_json = excluded.sub_json
+            """,
+            (endpoint, sub_json),
+        )
+
+
+def delete_push_subscription(endpoint: str) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,))
+
+
+def list_push_subscriptions() -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT endpoint, sub_json FROM push_subscriptions").fetchall()
         return [dict(row) for row in rows]
 
 

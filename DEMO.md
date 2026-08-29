@@ -11,6 +11,11 @@ Target: ~4 minutes. One presenter, one screen.
    works with the backend running)
 4. Browser at http://localhost:5173, **Timeline** tab, zoomed to ~110%.
 5. Pick a theme and stick with it (toggle is top-right of the header).
+6. *(Optional, for the push beat)* Settings (top-right, click the name) →
+   **Check-in reminders** → **Turn on**, allow the browser prompt. Then
+   **Send test** to confirm a notification actually shows on this machine.
+   Web Push needs `localhost` or HTTPS and a Chromium/Firefox browser;
+   if it won't grant, skip the push beat — the in-app banner still lands.
 
 Maya is pre-seeded: a planner who over-deliberates, ~2 weeks of history,
 two decisions with a check-in almost due.
@@ -24,10 +29,17 @@ two decisions with a check-in almost due.
 | 0:55 | Auto-resolve | Type `should I skip breakfast today` → **Log it** | "Watch what happens with one Choicely already understands." *(card appears)* "It doesn't ask — it answers: *You always regret skipping meals, so: eat something.* She's logged this ten times. It's not a decision anymore, so Choicely takes it off her." |
 | 1:35 | The forecast | **Regret forecast** tab → the *skipping meals* card | "Here's why it's allowed to do that. Every category starts at the population average — 71%. Choicely nudges that with Maya's onboarding answers — planner, hates missing out — 77%, then 82% (that's the staircase on the left). Then her own outcomes take over and the real number is 90%. The shaded band is a 95% interval — it genuinely narrows as the estimate earns its keep." |
 | 2:10 | …opposite cases | Scroll through *going out despite low energy* and *skipping exercise* | "Same machine, opposite conclusions. Everyone — and her profile — expected her to regret forcing herself out, and skipping workouts. Her actual history says she's glad she went, and fine skipping. Population data alone would have told her the wrong thing about her own life — twice." |
-| 2:35 | Proactive check-in | **Timeline** tab → **+1 day** (bottom-right control) | "Now a day goes by." *(check-in banner appears)* "Choicely came back on its own. *How did the party go? How did replying to your sister land?* You don't have to remember to reflect — it brings the loop back to you." |
+| 2:35 | Proactive check-in | **Timeline** tab → **+1 day** (bottom-right control) | "Now a day goes by." *(check-in banner appears; if push is on, a notification fires too)* "Choicely came back on its own — even if the tab was closed. *How did the party go? How did replying to your sister land?* You don't have to remember to reflect — it brings the loop back to you." |
 | 3:05 | Close a loop | Click **Went well** on the party check-in | "One tap. That outcome just fed her forecast." |
 | 3:15 | Reflection | Point at the Reflection card | "And it notices what a thoughtful friend would. *You keep asking yourself about skipping meals.* *One question keeps coming back unanswered* — the club, four times, no decision. And always one thing she's getting right: *You can trust your gut on pushing yourself to go out.*" |
 | 3:45 | Close | (app idle) | "Decision fatigue is a real tax on mental health. Choicely doesn't try to make you a better decision-maker. It carries the ones you shouldn't have to — population wisdom when you're new, your own patterns when you're not, and it always checks back." |
+
+### Optional beat — it's a real app (use if asked "is this just a web page?")
+
+Install it: browser menu → **Install Choicely** (or "Add to Home Screen").
+It opens standalone, no address bar. "Check-ins reach you the way any app's
+notifications do — this isn't a tab you have to keep open." The **+1 day**
+control then fires an actual OS notification.
 
 ### Optional beat — track record (use if asked "how do you know the predictions are any good?")
 
@@ -66,8 +78,10 @@ the advice is a concrete low-friction script, not "just be direct"). The seeded
   that it shows a probability, never a verdict. The onboarding survey can
   never trigger it.
 - **Privacy?** Local SQLite. Nothing leaves the machine except the
-  classification call (and only if a key is set).
-- **What's next?** Push notifications for check-ins, calendar hooks, and
+  classification call (and only if a key is set) and the Web Push envelope
+  (endpoint + encrypted payload) when notifications are on.
+- **What's next?** Calendar hooks (pre-empt decisions before events),
+  regret-trigger analysis ("you regret decisions made after 10pm"), and
   shared decisions for the interpersonal ones (both parties' game theory).
 
 ## If something breaks
