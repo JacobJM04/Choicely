@@ -491,6 +491,43 @@
 }
 .option-back:hover { color: var(--ink); }
 
+/* ---- crisis guardrail ---- */
+
+.safety-box {
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+}
+.safety-box .prior-tag { margin-bottom: 6px; }
+.safety-box p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.safety-crisis {
+  background: var(--panel-2);
+  box-shadow: inset 2px 0 0 var(--ink-2);
+}
+.safety-sensitive {
+  background: var(--warn-wash);
+  box-shadow: inset 2px 0 0 var(--warn);
+  margin-bottom: var(--s2);
+}
+.safety-sensitive .prior-tag { color: var(--warn); }
+
+.safety-resources {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.safety-resources li { font-size: 12px; line-height: 1.5; }
+.safety-resource-label { font-weight: 600; color: var(--ink); }
+.safety-resource-detail { color: var(--ink-3); }
+
 .empty-state {
   font-size: 13px;
   color: var(--ink-3);

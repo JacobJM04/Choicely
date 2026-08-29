@@ -57,6 +57,18 @@ sideways 90% of the time, against 20% the rest of the day. Her evening
 calls are the opposite. It checked time pressure, busy days, and
 back-and-forth too; time of day is what moved the needle for her."
 
+### Optional beat — guardrails (use if asked "what stops it giving terrible advice?")
+
+Type `should I take out a payday loan to cover rent this month` → **Log it**.
+Above the estimate, an amber banner: "this is high-consequence, and a regret
+average isn't enough to go on" plus a free credit-counseling link. "Choicely
+still shows its number, but it names who to actually talk to."
+
+Then say (don't type it on stage): "There's a harder tier. If the text reads
+as self-harm, abuse, or a medical emergency, Choicely doesn't predict
+anything — it keeps the note so you don't lose it, and points to 988 or a
+local line instead. A regret model has no business scoring that."
+
 ### Optional beat — comparing options (use if asked "what if it's not yes/no?")
 
 On the timeline, the **"the weekend trip"** card. "Not every decision is

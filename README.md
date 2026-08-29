@@ -124,6 +124,20 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   strongest three are returned -- with an affirming one guaranteed a slot
   if the data supports it. Same shape either way. Sits below the mental-
   load banner.
+- **Crisis guardrails** (`backend/app/safety.py`, screened in
+  `POST /decisions`, `SafetyBox` on the card): some things typed into a
+  decision box are not decisions a regret model should score. Two tiers:
+  a **crisis** match (self-harm, abuse, a medical emergency) is logged so
+  the person doesn't lose what they wrote, but gets no estimate, no
+  category, and no check-in -- just a short calm message and a real
+  resource (988, findahelpline.com, a local emergency number). A
+  **sensitive** match (payday loans, gambling savings, cashing out
+  retirement) still shows the estimate, with a banner above it naming who
+  to talk to. Conservative phrase matching (a false positive is a kind
+  message with a hotline; a false negative isn't survivable); the Claude
+  classifier path returns the same verdict when a key is set. Crisis
+  notes are held out of the forecast, calibration, triggers, debt, and
+  mental-load accounting.
 - **Compare options** (`backend/app/options.py`, `POST /decisions` with an
   `options` list, `frontend` composer + `OptionsBox`): a decision doesn't
   have to be yes/no. Give Choicely 2-4 alternatives and each one is run

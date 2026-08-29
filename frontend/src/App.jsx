@@ -191,8 +191,34 @@ function OptionsBox({ decision, onRecordOutcome }) {
   )
 }
 
+function SafetyBox({ safety }) {
+  return (
+    <div className={`safety-box safety-${safety.tier}`}>
+      <span className="prior-tag">{safety.tier === 'crisis' ? 'Choicely stepped back' : 'Worth a second opinion'}</span>
+      <p>{prose(safety.message)}</p>
+      {safety.resources?.length > 0 && (
+        <ul className="safety-resources">
+          {safety.resources.map((r, i) => (
+            <li key={i}>
+              {r.url ? (
+                <a href={r.url} target="_blank" rel="noopener noreferrer">
+                  {r.label}
+                </a>
+              ) : (
+                <span className="safety-resource-label">{r.label}</span>
+              )}
+              {r.detail && <span className="safety-resource-detail"> — {r.detail}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function DecisionCard({ decision, onRecordOutcome }) {
   const isOptions = !!decision.options
+  const crisis = decision.safety?.tier === 'crisis'
 
   return (
     <div className="decision-card">
@@ -204,36 +230,44 @@ function DecisionCard({ decision, onRecordOutcome }) {
           )}
         </p>
         <div className="badges">
-          {isOptions && <span className="badge badge-compare">compare</span>}
-          <span className="badge">{decision.decision_type}</span>
-          <span className="badge">{decision.stakes}</span>
-          {decision.urgency === 'high' && <span className="badge badge-urgent">urgent</span>}
+          {isOptions && !crisis && <span className="badge badge-compare">compare</span>}
+          {!crisis && <span className="badge">{decision.decision_type}</span>}
+          {!crisis && <span className="badge">{decision.stakes}</span>}
+          {!crisis && decision.urgency === 'high' && <span className="badge badge-urgent">urgent</span>}
         </div>
       </div>
 
-      {isOptions ? (
-        <OptionsBox decision={decision} onRecordOutcome={onRecordOutcome} />
+      {crisis ? (
+        <SafetyBox safety={decision.safety} />
       ) : (
         <>
-          <PredictionBox decision={decision} />
-          <BreakdownBox breakdown={decision.breakdown} />
+          {decision.safety && <SafetyBox safety={decision.safety} />}
 
-          {decision.outcome ? (
-            <div className="outcome-recorded">
-              <span className={`dot ${decision.outcome}`} />
-              {OUTCOME_PAST[decision.outcome] ?? decision.outcome}
-            </div>
+          {isOptions ? (
+            <OptionsBox decision={decision} onRecordOutcome={onRecordOutcome} />
           ) : (
-            <div className="outcome-prompt">
-              <span>How did it go?</span>
-              <div className="outcome-buttons">
-                {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-                  <button key={key} onClick={() => onRecordOutcome(decision.id, key)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <>
+              <PredictionBox decision={decision} />
+              <BreakdownBox breakdown={decision.breakdown} />
+
+              {decision.outcome ? (
+                <div className="outcome-recorded">
+                  <span className={`dot ${decision.outcome}`} />
+                  {OUTCOME_PAST[decision.outcome] ?? decision.outcome}
+                </div>
+              ) : (
+                <div className="outcome-prompt">
+                  <span>How did it go?</span>
+                  <div className="outcome-buttons">
+                    {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
+                      <button key={key} onClick={() => onRecordOutcome(decision.id, key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

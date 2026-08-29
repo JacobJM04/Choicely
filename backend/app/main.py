@@ -20,6 +20,7 @@ from . import (
     push,
     reflection,
     regret,
+    safety,
     triggers,
 )
 
@@ -69,6 +70,8 @@ def _serialize(row: dict) -> dict:
     row["breakdown"] = json.loads(breakdown_json) if breakdown_json else None
     options_json = row.pop("options_json", None)
     row["options"] = json.loads(options_json) if options_json else None
+    safety_json = row.pop("safety_json", None)
+    row["safety"] = json.loads(safety_json) if safety_json else None
     return row
 
 
@@ -118,6 +121,10 @@ def create_decision(payload: DecisionIn):
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="Decision text cannot be empty.")
+
+    flag = safety.screen(text)
+    if flag and flag["tier"] == "crisis":
+        return _create_flagged_decision(text, flag)
 
     is_first_ever = models.count_decisions() == 0
     profile_row = models.get_profile()
@@ -195,6 +202,7 @@ def create_decision(payload: DecisionIn):
             "auto_resolution": auto_resolution_text,
             "breakdown_json": breakdown_json,
             "topic_id": existing_topic_id,
+            "safety_json": json.dumps(flag) if flag else None,
         }
     )
 
@@ -206,7 +214,30 @@ def create_decision(payload: DecisionIn):
     return _serialize(models.get_decision(decision_id))
 
 
+def _create_flagged_decision(text: str, flag: dict) -> dict:
+    """A crisis-tier decision: logged so the person doesn't lose what they
+    wrote, but with no prediction, no category, and no check-in nagging."""
+    decision_id = models.insert_decision(
+        {
+            "text": text,
+            "decision_type": "routine",
+            "stakes": "high",
+            "urgency": "low",
+            "source": "flagged_crisis",
+            "safety_json": json.dumps(flag),
+        }
+    )
+    models.set_topic_id(decision_id, decision_id)
+    return _serialize(models.get_decision(decision_id))
+
+
 def _create_option_decision(header: str, option_texts: list[str]) -> dict:
+    flag = safety.screen(header, *option_texts)
+    if flag and flag["tier"] == "crisis":
+        return _create_flagged_decision(
+            header or "Choosing between: " + ", ".join(option_texts), flag
+        )
+
     profile_row = models.get_profile()
     analysis = options.analyze(option_texts, profile_row)
     overall = options.overall_classification(header, option_texts, profile_row, analysis["items"])
@@ -229,6 +260,7 @@ def _create_option_decision(header: str, option_texts: list[str]) -> dict:
             # best any option can do.
             "blended_regret_estimate": best,
             "options_json": json.dumps(analysis),
+            "safety_json": json.dumps(flag) if flag else None,
         }
     )
     models.set_topic_id(decision_id, decision_id)

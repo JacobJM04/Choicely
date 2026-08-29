@@ -40,7 +40,10 @@ def _parse(ts: str | None) -> datetime | None:
 
 
 def weekly_load(include_seed: bool = False) -> dict:
-    rows = models.list_decisions(include_seed=include_seed)
+    # Crisis-flagged notes (see safety.py) are held out of the load
+    # accounting entirely -- they aren't a loop to close or a task to nag
+    # about, and counting them as "still open" would be the wrong message.
+    rows = [r for r in models.list_decisions(include_seed=include_seed) if r["source"] != "flagged_crisis"]
     now = datetime.now()
     cutoff = now - timedelta(days=WINDOW_DAYS)
 

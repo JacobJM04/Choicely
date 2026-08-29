@@ -78,6 +78,10 @@ _NEW_COLUMNS = {
         # category so it flows through the forecast like any other.
         "options_json": "TEXT",
         "chosen_option_idx": "INTEGER",
+        # Crisis-guardrail verdict (see safety.py). JSON with tier/category/
+        # message/resources when the text tripped a guardrail; NULL otherwise.
+        # A "crisis" tier decision carries no prediction at all.
+        "safety_json": "TEXT",
     },
 }
 
@@ -253,8 +257,9 @@ def insert_decision(decision: dict) -> int:
                  prior_category_label, prior_regret_rate, prior_sample_size, prior_description,
                  personal_regret_estimate, profile_adjusted_regret_rate, personality_adjusted_regret_rate,
                  blended_regret_estimate, confidence, personal_data_points, auto_resolution,
-                 breakdown_json, topic_id, is_seed, outcome_due_at, outcome_recorded_at, options_json)
-            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 breakdown_json, topic_id, is_seed, outcome_due_at, outcome_recorded_at,
+                 options_json, safety_json)
+            VALUES (?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 decision["text"],
@@ -281,6 +286,7 @@ def insert_decision(decision: dict) -> int:
                 decision.get("outcome_due_at"),
                 decision.get("outcome_recorded_at"),
                 decision.get("options_json"),
+                decision.get("safety_json"),
             ),
         )
         return cursor.lastrowid
