@@ -29,6 +29,15 @@ two decisions with a check-in almost due.
 | 3:15 | Reflection | Point at the Reflection card | "And it notices what a thoughtful friend would. *You keep asking yourself about skipping meals.* *One question keeps coming back unanswered* — the club, four times, no decision. And always one thing she's getting right: *You can trust your gut on pushing yourself to go out.*" |
 | 3:45 | Close | (app idle) | "Decision fatigue is a real tax on mental health. Choicely doesn't try to make you a better decision-maker. It carries the ones you shouldn't have to — population wisdom when you're new, your own patterns when you're not, and it always checks back." |
 
+### Optional beat — track record (use if asked "how do you know the predictions are any good?")
+
+**Track record** tab. "Choicely keeps score of its own predictions. Every
+decision Maya closed the loop on, scored against what actually happened.
+The honest read: when Choicely was confident enough to say 75%+, she
+regretted it 90% of the time — 10 for 10. That's the only range it will
+answer a decision outright in. Its middle-confidence guesses are looser,
+and it shows you that too — the reliability curve doesn't hide the misses."
+
 ### Optional beat — interpersonal (use if asked "what about hard decisions with other people?")
 
 Type `should I bring up the noise thing with my roommate` → **Log it**. The card
@@ -43,6 +52,12 @@ the advice is a concrete low-friction script, not "just be direct"). The seeded
   (`backend/data/reference_dataset.json`, figures inspired by behavioral-psych
   findings on regret). The blend logic takes real aggregate data as a drop-in
   — nothing about the architecture changes.
+- **How accurate is it?** The **Track record** tab scores every past
+  prediction against the recorded outcome. Overall per-decision error is
+  large by nature (a probability vs. a yes/no result), so the honest metric
+  is group calibration: at the high-confidence end — the only place it
+  auto-answers — predictions hold up (75%+ → 90% actual on the demo data).
+  It surfaces its weak spots (mid-range guesses) rather than hiding them.
 - **Where's the AI?** Claude does the decision classification, the
   game-theory breakdown for interpersonal decisions, and writes the weekly
   reflection. Each has a heuristic fallback, so it runs with no API key.

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import (
+    calibration,
     checkins,
     classifier,
     dataset,
@@ -255,6 +256,12 @@ def get_category_insight(category_label: str, include_seed: bool = True):
     if forecast is None:
         raise HTTPException(status_code=404, detail="No history for that category yet.")
     return forecast
+
+
+@app.get("/track-record")
+def get_track_record(include_seed: bool = True):
+    """How close Choicely's past regret predictions came to the recorded outcomes."""
+    return calibration.track_record(include_seed)
 
 
 @app.get("/dashboard")

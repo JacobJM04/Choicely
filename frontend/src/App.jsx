@@ -3,6 +3,7 @@ import './App.css'
 import Onboarding from './Onboarding'
 import Settings from './Settings'
 import RegretForecast from './RegretForecast'
+import TrackRecord from './TrackRecord'
 import MentalLoad from './MentalLoad'
 import CheckIns from './CheckIns'
 import Reflection from './Reflection'
@@ -237,7 +238,7 @@ function PredictionExplainer() {
 function App() {
   const [profile, setProfile] = useState(undefined) // undefined = checking, null = none yet
   const [view, setView] = useState('main') // 'main' | 'settings' | 'retake'
-  const [mainTab, setMainTab] = useState('timeline') // 'timeline' | 'forecast'
+  const [mainTab, setMainTab] = useState('timeline') // 'timeline' | 'forecast' | 'record'
   const [showAllDecisions, setShowAllDecisions] = useState(false)
   const [decisions, setDecisions] = useState([])
   const [debtItems, setDebtItems] = useState([])
@@ -360,6 +361,9 @@ function App() {
           <button className={mainTab === 'forecast' ? 'active' : ''} onClick={() => setMainTab('forecast')}>
             Regret forecast
           </button>
+          <button className={mainTab === 'record' ? 'active' : ''} onClick={() => setMainTab('record')}>
+            Track record
+          </button>
         </nav>
         <span className="topbar-spacer" />
         <div className="topbar-actions">
@@ -422,6 +426,7 @@ function App() {
           )}
 
           {mainTab === 'forecast' && <RegretForecast key={refreshTick} />}
+          {mainTab === 'record' && <TrackRecord refreshKey={refreshTick} />}
         </main>
 
         <aside className="rail">

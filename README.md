@@ -63,6 +63,17 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   estimate up to 90%." The blend math is still `regret.py`; `_interval` in
   `insights.py` and the earlier line-chart machinery remain in the payload
   but the UI is deliberately minimal. New "Regret forecast" tab.
+- **Track record** (`backend/app/calibration.py`, `GET /track-record`,
+  `frontend/src/TrackRecord.jsx`): Choicely scoring its own past
+  predictions against the outcomes later recorded. Framed as
+  accountability, not a victory lap -- per-decision error is inherently
+  large (a probability judged against a 0/0.5/1 outcome), so the page
+  leads with group calibration: a reliability curve (predictions bucketed
+  by confidence vs. the actual regret rate in each bucket), a per-tier
+  "typical miss" comparison (prior-only vs. blended vs. personal), and the
+  count of confident calls (>=75% or <=25%) that the outcome bore out. The
+  high-confidence end -- the only range auto-resolve fires in -- holds up;
+  the middle is looser and the curve shows it. New "Track record" tab.
 - **Mental load** (`backend/app/load.py`, `GET /load`,
   `frontend/src/MentalLoad.jsx`): windowed to the last 7 days --
   decisions taken off your plate (auto-resolved + confidently estimated),
