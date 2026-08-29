@@ -75,7 +75,17 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
   count of confident calls (>=75% or <=25%) that the outcome bore out. The
   high-confidence end -- the only range auto-resolve fires in -- holds up;
   the middle is looser and the curve shows it. New "Track record" tab.
-- **Mental load** (`backend/app/load.py`, `GET /load`,
+- **Regret triggers** (`backend/app/triggers.py`, `GET /triggers`,
+  `frontend/src/RegretPatterns.jsx`): where the forecast asks "what kind
+  of decision is this?", this asks "what was going on when you made it?"
+  -- it splits every closed decision by time of day, time pressure, how
+  many decisions were already logged that day, and how much back-and
+  -forth preceded it, and surfaces the splits where the regret rate
+  actually moves (both sides need >=4 decisions and a gap of >=18pp at
+  >=1.4x, or it says nothing rather than invent a pattern). Positive
+  windows are called out too. Shown as a "When regret clusters" section
+  on the Track record tab. On the demo seed: Maya's morning decisions
+  regret 90% vs 20% the rest of the day; her evenings are the reverse.
   `frontend/src/MentalLoad.jsx`): windowed to the last 7 days --
   decisions taken off your plate (auto-resolved + confidently estimated),
   loops closed (outcomes recorded), and questions still open (decision

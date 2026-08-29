@@ -50,6 +50,13 @@ regretted it 90% of the time — 10 for 10. That's the only range it will
 answer a decision outright in. Its middle-confidence guesses are looser,
 and it shows you that too — the reliability curve doesn't hide the misses."
 
+Then scroll to **When regret clusters** at the bottom: "It also looks at
+what was going on *around* the decision, not just what kind it was. For
+Maya: her morning decisions — the on-the-way-out-the-door ones — go
+sideways 90% of the time, against 20% the rest of the day. Her evening
+calls are the opposite. It checked time pressure, busy days, and
+back-and-forth too; time of day is what moved the needle for her."
+
 ### Optional beat — interpersonal (use if asked "what about hard decisions with other people?")
 
 Type `should I bring up the noise thing with my roommate` → **Log it**. The card

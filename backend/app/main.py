@@ -19,6 +19,7 @@ from . import (
     push,
     reflection,
     regret,
+    triggers,
 )
 
 app = FastAPI(title="Choicely API")
@@ -298,6 +299,12 @@ def get_category_insight(category_label: str, include_seed: bool = True):
 def get_track_record(include_seed: bool = True):
     """How close Choicely's past regret predictions came to the recorded outcomes."""
     return calibration.track_record(include_seed)
+
+
+@app.get("/triggers")
+def get_triggers(include_seed: bool = True):
+    """Conditions under which the user regrets decisions more (or less) than usual."""
+    return triggers.regret_triggers(include_seed)
 
 
 @app.get("/dashboard")

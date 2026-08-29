@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './TrackRecord.css'
 import { API_BASE } from './api'
 import { prose } from './text'
+import RegretPatterns from './RegretPatterns'
 
 const pct = (v) => `${Math.round((v ?? 0) * 100)}%`
 const pts = (v) => Math.round((v ?? 0) * 100)
@@ -107,6 +108,7 @@ export default function TrackRecord({ refreshKey }) {
           <p>Choicely keeps score of its own predictions. Close a few more loops and this fills in.</p>
         </div>
         <p className="empty-state">{prose(data.headline)}</p>
+        <RegretPatterns refreshKey={refreshKey} />
       </div>
     )
   }
@@ -120,8 +122,8 @@ export default function TrackRecord({ refreshKey }) {
       <div className="tr-intro">
         <h2>Track record</h2>
         <p>
-          Every prediction Choicely made, scored against what you later recorded. It only ever
-          answers a decision outright where this record is strong.
+          What your recorded outcomes reveal — how close Choicely’s predictions have come, and the
+          conditions that tend to precede a regret.
         </p>
       </div>
 
@@ -187,6 +189,8 @@ export default function TrackRecord({ refreshKey }) {
           </ul>
         </section>
       )}
+
+      <RegretPatterns refreshKey={refreshKey} />
     </div>
   )
 }

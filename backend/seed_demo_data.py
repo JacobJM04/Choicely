@@ -29,25 +29,30 @@ from datetime import datetime, timedelta
 
 from app import checkins, dataset, debt, models, personality, profile as profile_mod, regret
 
+# (text, outcome, days_ago, hour) -- hour spreads the history across the day so
+# the regret-trigger analysis has a real time-of-day signal to find. Maya's
+# pattern: breakfast-skips happen in the morning rush and she regrets almost
+# all of them; her evening social calls almost always land well; her daytime
+# workout calls are mixed.
 WORKOUT_SEEDS = [
-    ("should I skip the gym today, feeling exhausted", "good", 6),
-    ("skip leg day, still sore from yesterday", "good", 5),
-    ("should I skip my run this morning", "neutral", 4),
-    ("thinking about skipping the gym tonight", "good", 2),
-    ("skip workout, too busy with work", "regret", 1),
+    ("should I skip the gym today, feeling exhausted", "good", 6, 13),
+    ("skip leg day, still sore from yesterday", "good", 5, 12),
+    ("should I skip my run this morning", "neutral", 4, 15),
+    ("thinking about skipping the gym tonight", "good", 2, 16),
+    ("skip workout, too busy with work", "regret", 1, 14),
 ]
 
 BREAKFAST_SEEDS = [
-    ("should I skip breakfast, out the door late", "regret", 22),
-    ("skip breakfast again, not hungry", "regret", 19),
-    ("thinking about skipping breakfast today", "neutral", 16),
-    ("should I just skip breakfast and eat lunch early", "regret", 13),
-    ("skip breakfast, don't feel like cooking", "regret", 10),
-    ("no time for breakfast today, skip it", "regret", 6),
-    ("should I skip breakfast before work", "regret", 4),
-    ("skip breakfast, not feeling well", "neutral", 3),
-    ("thinking about skipping breakfast again", "regret", 2),
-    ("should I skip breakfast one more time", "regret", 1),
+    ("should I skip breakfast, out the door late", "regret", 22, 7),
+    ("skip breakfast again, not hungry", "regret", 19, 8),
+    ("thinking about skipping breakfast today", "neutral", 16, 7),
+    ("should I just skip breakfast and eat lunch early", "regret", 13, 8),
+    ("skip breakfast, don't feel like cooking", "regret", 10, 7),
+    ("no time for breakfast today, skip it", "regret", 6, 8),
+    ("should I skip breakfast before work", "regret", 4, 7),
+    ("skip breakfast, not feeling well", "neutral", 3, 8),
+    ("thinking about skipping breakfast again", "regret", 2, 7),
+    ("should I skip breakfast one more time", "regret", 1, 8),
 ]
 
 # Social: forcing herself out when low on energy. She's a planner who fears
@@ -56,18 +61,18 @@ BREAKFAST_SEEDS = [
 # she went. A third forecast card, and the clearest "your history overrides
 # the prior, in the good direction" story.
 SOCIAL_SEEDS = [
-    ("should I go out tonight even though I'm exhausted", "good", 20),
-    ("drag myself to the party this weekend or bail", "good", 15),
-    ("worth going on the weekend trip when I'm this tired", "good", 9),
-    ("make it to the hang out tonight, feeling drained", "neutral", 5),
-    ("should I go out for drinks after work, wiped", "good", 2),
+    ("should I go out tonight even though I'm exhausted", "good", 20, 19),
+    ("drag myself to the party this weekend or bail", "good", 15, 20),
+    ("worth going on the weekend trip when I'm this tired", "good", 9, 18),
+    ("make it to the hang out tonight, feeling drained", "neutral", 5, 20),
+    ("should I go out for drinks after work, wiped", "good", 2, 19),
 ]
 
 DEBT_SEEDS = [
-    ("should I quit this club", None, 21),
-    ("should I quit this club", None, 15),
-    ("should I quit this club", None, 9),
-    ("should I quit this club", None, 3),
+    ("should I quit this club", None, 21, 14),
+    ("should I quit this club", None, 15, 14),
+    ("should I quit this club", None, 9, 14),
+    ("should I quit this club", None, 3, 14),
 ]
 
 # Real (not seed-flagged) decisions logged recently with no outcome yet and a
@@ -147,7 +152,15 @@ def _source_for(prediction: dict, profile_adjusted, personality_adjusted) -> str
     return "blended"
 
 
-def _insert_seeded(text: str, decision_type: str, stakes: str, urgency: str, outcome: str | None, days_ago: int) -> None:
+def _insert_seeded(
+    text: str,
+    decision_type: str,
+    stakes: str,
+    urgency: str,
+    outcome: str | None,
+    days_ago: int,
+    hour: int = 12,
+) -> None:
     prior = dataset.get_prior(decision_type, text)
     profile_adjusted, personality_adjusted, effective_rate = _adjusted_rates(prior, decision_type, stakes)
 
@@ -159,7 +172,9 @@ def _insert_seeded(text: str, decision_type: str, stakes: str, urgency: str, out
         prior["high_regret_advice"],
         prior["low_regret_advice"],
     )
-    logged_at = datetime.now() - timedelta(days=days_ago)
+    logged_at = (datetime.now() - timedelta(days=days_ago)).replace(
+        hour=hour, minute=15, second=0, microsecond=0
+    )
     timestamp = logged_at.strftime("%Y-%m-%d %H:%M:%S")
     # Outcomes were "recorded" a few hours after the decision -- keeps the
     # weekly mental-load window and time-to-close stats realistic.
@@ -239,17 +254,17 @@ def seed() -> None:
     if models.get_profile() is None:
         _seed_profile()
 
-    for text, outcome, days_ago in WORKOUT_SEEDS:
-        _insert_seeded(text, "health", "low", "low", outcome, days_ago)
+    for text, outcome, days_ago, hour in WORKOUT_SEEDS:
+        _insert_seeded(text, "health", "low", "low", outcome, days_ago, hour)
 
-    for text, outcome, days_ago in BREAKFAST_SEEDS:
-        _insert_seeded(text, "health", "low", "low", outcome, days_ago)
+    for text, outcome, days_ago, hour in BREAKFAST_SEEDS:
+        _insert_seeded(text, "health", "low", "low", outcome, days_ago, hour)
 
-    for text, outcome, days_ago in SOCIAL_SEEDS:
-        _insert_seeded(text, "social", "low", "low", outcome, days_ago)
+    for text, outcome, days_ago, hour in SOCIAL_SEEDS:
+        _insert_seeded(text, "social", "low", "low", outcome, days_ago, hour)
 
-    for text, outcome, days_ago in DEBT_SEEDS:
-        _insert_seeded(text, "routine", "high", "low", outcome, days_ago)
+    for text, outcome, days_ago, hour in DEBT_SEEDS:
+        _insert_seeded(text, "routine", "high", "low", outcome, days_ago, hour)
 
     for text, dtype, stakes, urgency, hours_ago in PENDING_SEEDS:
         _insert_pending(text, dtype, stakes, urgency, hours_ago)

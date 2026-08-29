@@ -1,0 +1,107 @@
+.rp {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.rp .kicker { margin-bottom: var(--s3); }
+
+.rp-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+.rp-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.rp-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+}
+
+.rp-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+  flex-wrap: wrap;
+}
+
+.rp-card-head h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.rp-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.rp-tag.worse { background: var(--neg-wash); color: var(--neg); }
+.rp-tag.better { background: var(--pos-wash); color: var(--pos); }
+
+.rp-bar-row {
+  display: grid;
+  grid-template-columns: 128px 1fr 38px;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: 4px;
+}
+
+.rp-bar-label {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rp-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.rp-bar-fill { height: 100%; border-radius: 999px; }
+.rp-bar-fill.neg { background: var(--neg); opacity: 0.75; }
+.rp-bar-fill.pos { background: var(--pos); opacity: 0.75; }
+.rp-bar-fill.muted { background: var(--ink-3); opacity: 0.4; }
+
+.rp-bar-val {
+  font-size: 10.5px;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.rp-detail {
+  margin: var(--s2) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.rp-footer {
+  margin: var(--s3) 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
+@media (max-width: 560px) {
+  .rp-bar-row { grid-template-columns: 96px 1fr 34px; }
+}
