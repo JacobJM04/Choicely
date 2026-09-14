@@ -2,7 +2,8 @@
   margin-bottom: var(--s4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 13px 15px;
+  background: var(--panel);
 }
 
 .reflection-head {
@@ -13,14 +14,10 @@
   margin-bottom: var(--s2);
 }
 
-.reflection-source {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--ink-3);
-}
-
 .reflection-intro {
-  margin: 0 0 var(--s2);
+  margin: 0 0 var(--s3);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   color: var(--ink-3);
 }
@@ -29,26 +26,42 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--s4);
 }
 
 .reflection-list li {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--s2) 0;
+  gap: 3px;
+  animation: rise 0.45s var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 160ms);
 }
-.reflection-list li + li { border-top: 1px solid var(--line); }
+.reflection-list li:not(:first-child) {
+  padding-left: var(--s4);
+  border-left: 1px solid var(--line);
+}
 
 .reflection-list strong {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--ink);
+  line-height: 1.4;
 }
 
 .reflection-list span {
   font-size: 12.5px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--ink-2);
+}
+
+@media (max-width: 620px) {
+  .reflection-list { grid-template-columns: 1fr; gap: 0; }
+  .reflection-list li:not(:first-child) {
+    padding: var(--s3) 0 0;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    margin-top: var(--s3);
+  }
 }

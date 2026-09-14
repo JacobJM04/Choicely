@@ -334,10 +334,10 @@ def _claude_reflection(rows, profile):
     )
     message = client.messages.create(
         model="claude-sonnet-5",
-        max_tokens=600,
+        max_tokens=1100,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = message.content[0].text
+    raw = next((b.text for b in message.content if getattr(b, "type", None) == "text"), "")
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     parsed = json.loads(match.group(0) if match else raw)
     insights = [

@@ -2,14 +2,15 @@ import { useState } from 'react'
 import './DemoControls.css'
 import { API_BASE } from './api'
 
-// The time-travel control is a demo aid, not a product feature. It only shows
-// when a viewer explicitly opts in with ?demo in the URL, so the normal app
-// view stays clean.
+// The time-travel control is a demo aid, not a product feature -- but for a
+// live walkthrough (Devpost, judges, a hallway demo) you want it on by
+// default rather than having to remember a URL flag. Add ?nodemo to hide it
+// for a clean, presentation-free view.
 function demoEnabled() {
   try {
-    return new URLSearchParams(window.location.search).has('demo')
+    return !new URLSearchParams(window.location.search).has('nodemo')
   } catch {
-    return false
+    return true
   }
 }
 

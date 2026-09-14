@@ -20,19 +20,28 @@ Target: ~4 minutes. One presenter, one screen.
 Maya is pre-seeded: a planner who over-deliberates, ~2 weeks of history,
 two decisions with a check-in almost due.
 
+**For a judged run, set `ANTHROPIC_API_KEY`** (in `backend/.env` or the
+environment) before starting the backend — it turns on the grounded debrief,
+the agent's backlog triage, and Claude-phrased check-ins. Everything below
+still works without it (heuristic fallbacks), just less sharp. Model
+defaults to `claude-sonnet-5`; `CHOICELY_LLM_MODEL=claude-opus-5` for the
+best output.
+
 ## Runtime
 
 | Time | Beat | Do | Say |
 |------|------|----|-----|
 | 0:00 | Hook | (app idle) | "You make about 35,000 decisions a day. Most aren't hard — they're just *heavy*. Should I skip the gym. Should I text her back. We carry hundreds of these half-open, and it's exhausting. Choicely is a second brain for the decisions you're tired of carrying." |
-| 0:25 | Mental load | Point at the banner at the top of the timeline | "This is Maya. The first thing she sees isn't a to-do list — it's what Choicely carried for her this week. Six decisions off her plate. Twelve loops closed. Four still open. The metric is her mental load, not her output." (numbers are whatever the banner shows on a fresh `--reset`; glance before you start.) |
+| 0:25 | **Grounded debrief** | Composer → **…or talk through one you're stuck on**. Paste (have it ready): *"I keep coming back to whether I should quit this club. I'm barely going, I feel like I'm letting people down, but leaving feels like admitting I failed. I already paid for the year."* → **Read it back to me** | "The one-liner box is fine for 'skip the gym'. This is for the one you've been carrying. Choicely reads it back — *the real question*, and: you've logged this one before without ever settling it. What you're circling. Two options. And the grounded read — every line tied to a number or a decision from *her own log*: she's logged this four times and recorded an outcome zero times. The problem isn't the club, it's not deciding." Click **Log this decision**. |
+| 0:50 | Mental load | Point at the banner at the top of the timeline | "The first thing she sees isn't a to-do list — it's what Choicely carried for her this week. Six decisions off her plate. Seven loops closed. Four still open. The metric is her mental load, not her output." (numbers are whatever the banner shows on a fresh `--reset`; glance before you start — they drift a little with real elapsed time.) |
 | 0:55 | Auto-resolve | Type `should I skip breakfast today` → **Log it** | "Watch what happens with one Choicely already understands." *(card appears)* "It doesn't ask — it answers: *You always regret skipping meals, so: eat something.* She's logged this ten times. It's not a decision anymore, so Choicely takes it off her." |
 | 1:35 | The forecast | **Regret forecast** tab → the *skipping meals* card | "Here's why it's allowed to do that. Every category starts at the population average — 71%. Choicely nudges that with Maya's onboarding answers — planner, hates missing out — 77%, then 82% (that's the staircase on the left). Then her own outcomes take over and the real number is 90%. The shaded band is a 95% interval — it genuinely narrows as the estimate earns its keep." |
-| 2:10 | …opposite cases | Scroll through *going out despite low energy* and *skipping exercise* | "Same machine, opposite conclusions. Everyone — and her profile — expected her to regret forcing herself out, and skipping workouts. Her actual history says she's glad she went, and fine skipping. Population data alone would have told her the wrong thing about her own life — twice." |
+| 2:10 | …the opposite case | Scroll to *going out despite low energy* | "Same machine, opposite conclusion. Everyone — and her profile — expected her to regret forcing herself out when she's tired. Her actual history says she's almost always glad she went. Population data alone would have told her the wrong thing about her own life." |
 | 2:35 | Proactive check-in | **Timeline** tab → **+1 day** (bottom-right control) | "Now a day goes by." *(check-in banner appears; if push is on, a notification fires too)* "Choicely came back on its own — even if the tab was closed. *How did the party go? How did replying to your sister land?* You don't have to remember to reflect — it brings the loop back to you." |
 | 3:05 | Close a loop | Click **Went well** on the party check-in | "One tap. That outcome just fed her forecast." |
 | 3:15 | Reflection | Point at the Reflection card | "And it notices what a thoughtful friend would. *You keep asking yourself about skipping meals.* *One question keeps coming back unanswered* — the club, four times, no decision. And always one thing she's getting right: *You can trust your gut on pushing yourself to go out.*" |
-| 3:45 | Close | (app idle) | "Decision fatigue is a real tax on mental health. Choicely doesn't try to make you a better decision-maker. It carries the ones you shouldn't have to — population wisdom when you're new, your own patterns when you're not, and it always checks back." |
+| 3:35 | **The agent** | **Agent** tab | "Everything you just saw is one loop, and this is it running on its own. The summary: answered outright, loops closed, check-ins raised, patterns found. The backlog — Choicely decided these are worth watching and this one it would just answer. Then the log: the two patterns it found, the check-ins it raised, and every loop it closed with its prediction scored against the outcome. Nobody asked it to do any of this." |
+| 4:00 | Close | (app idle) | "Decision fatigue is a real tax on mental health. Choicely doesn't try to make you a better decision-maker. It carries the ones you shouldn't have to — population wisdom when you're new, your own patterns when you're not, and it always checks back." |
 
 ### Optional beat — it's a real app (use if asked "is this just a web page?")
 
@@ -110,9 +119,13 @@ the advice is a concrete low-friction script, not "just be direct"). The seeded
   is group calibration: at the high-confidence end — the only place it
   auto-answers — predictions hold up (75%+ → 90% actual on the demo data).
   It surfaces its weak spots (mid-range guesses) rather than hiding them.
-- **Where's the AI?** Claude does the decision classification, the
-  game-theory breakdown for interpersonal decisions, and writes the weekly
-  reflection. Each has a heuristic fallback, so it runs with no API key.
+- **Where's the AI?** Claude is the reasoning layer. It writes the grounded
+  debrief (on top of retrieval + pinned numbers from the user's own log),
+  triages the agent's open backlog (answer now / keep watching / leave it),
+  phrases the check-ins, writes the weekly reflection, does classification,
+  the game-theory breakdown, and the crisis screen. One seam
+  (`backend/app/llm.py`), a response cache, and a heuristic fallback for
+  every one — so it runs with no API key, just sharper with one.
 - **Isn't auto-answering risky?** It never auto-resolves until 10+ of *your*
   recorded outcomes **and** a lopsided signal (≥65% or ≤20% regret). Below
   that it shows a probability, never a verdict. The onboarding survey can

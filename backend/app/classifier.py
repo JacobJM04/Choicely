@@ -93,7 +93,10 @@ def _profile_context(profile: dict) -> str:
 def _claude_classify(text: str, profile: dict | None = None) -> dict:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+    # Bounded so a slow network / Claude outage can't stall the whole
+    # "log a decision" request -- the SDK default timeout is minutes long,
+    # and this call is on the critical path of every decision logged.
+    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY, max_retries=1, timeout=12.0)
     prompt = _CLASSIFY_PROMPT.format(text=text)
     if profile:
         prompt += _profile_context(profile)
@@ -102,7 +105,7 @@ def _claude_classify(text: str, profile: dict | None = None) -> dict:
         max_tokens=200,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = message.content[0].text
+    raw = next((b.text for b in message.content if getattr(b, "type", None) == "text"), "")
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     parsed = json.loads(match.group(0) if match else raw)
 

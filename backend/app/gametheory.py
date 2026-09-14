@@ -86,16 +86,18 @@ def _profile_context(profile: dict) -> str:
 def _claude_breakdown(text: str, profile: dict | None = None) -> dict:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+    # Bounded for the same reason as classifier.py -- this sits on the
+    # critical path of logging an interpersonal decision.
+    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY, max_retries=1, timeout=12.0)
     prompt = _PROMPT.format(text=text)
     if profile:
         prompt += _profile_context(profile)
     message = client.messages.create(
         model="claude-sonnet-5",
-        max_tokens=400,
+        max_tokens=700,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = message.content[0].text
+    raw = next((b.text for b in message.content if getattr(b, "type", None) == "text"), "")
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     parsed = json.loads(match.group(0) if match else raw)
     if not all(k in parsed for k in _FIELDS):

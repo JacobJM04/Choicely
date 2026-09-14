@@ -1,0 +1,35 @@
+# One-click deploy to Render — a single web service built from the Dockerfile
+# (FastAPI serves the API and the built React app from the same origin), with
+# a persistent disk so the SQLite DB and the VAPID keypair survive redeploys.
+#
+#   1. Push this repo to GitHub.
+#   2. Render dashboard -> New -> Blueprint -> pick the repo.
+#   3. After the first deploy, set ANTHROPIC_API_KEY in the service's
+#      Environment tab (it's marked sync:false so it isn't stored in git),
+#      then "Manual Deploy -> Clear build cache & deploy".
+#   4. Seed the demo persona once from the service Shell tab:
+#        python seed_demo_data.py --reset
+services:
+  - type: web
+    name: choicely
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /survey-questions
+    disk:
+      name: choicely-data
+      mountPath: /srv/data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CHOICELY_LLM_MODEL
+        value: claude-sonnet-5
+      - key: CHOICELY_DB
+        value: /srv/data/choicely.db
+      - key: CHOICELY_DATA
+        value: /srv/data
+      # Leave the demo time-travel control on for a hackathon judge to poke at.
+      # Flip to "0" for a real public deployment.
+      - key: CHOICELY_DEMO
+        value: "1"

@@ -10,10 +10,16 @@ const OUTCOMES = [
   { key: 'regret', label: 'Regret it' },
 ]
 
+const ACTION_LABELS = { did: 'You went ahead', held_off: 'You held off' }
+
+const isYesNoText = (t) => /^\s*should i\b/i.test(t || '')
+
 export default function CheckIns({ refreshKey, onResolved }) {
   const [items, setItems] = useState([])
   const [busy, setBusy] = useState(null)
+  const [leaving, setLeaving] = useState({}) // id -> true while it collapses out
   const [picked, setPicked] = useState({}) // id -> chosen option index
+  const [acted, setActed] = useState({}) // id -> 'did' | 'held_off' (yes/no decisions)
 
   useEffect(() => {
     let live = true
@@ -26,13 +32,18 @@ export default function CheckIns({ refreshKey, onResolved }) {
     }
   }, [refreshKey])
 
-  async function answer(id, outcome, chosenOption) {
+  async function answer(id, outcome, chosenOption, actionTaken) {
     setBusy(id)
-    // Drop it from the list right away; the parent refresh reconciles.
-    setItems((prev) => prev.filter((it) => it.id !== id))
+    // Collapse it out, then drop it; the parent refresh reconciles + surfaces
+    // Choicely's reaction on the timeline card.
+    setLeaving((l) => ({ ...l, [id]: true }))
+    const removeAfter = setTimeout(() => {
+      setItems((prev) => prev.filter((it) => it.id !== id))
+    }, 320)
     try {
       const body = { outcome, contribute: isContributing() }
       if (chosenOption != null) body.chosen_option = chosenOption
+      if (actionTaken != null) body.action_taken = actionTaken
       await fetch(`${API_BASE}/decisions/${id}/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,6 +51,8 @@ export default function CheckIns({ refreshKey, onResolved }) {
       })
     } catch {
       /* the parent refresh will bring it back if it didn't take */
+      clearTimeout(removeAfter)
+      setItems((prev) => prev.filter((it) => it.id !== id))
     } finally {
       setBusy(null)
       onResolved?.()
@@ -61,8 +74,11 @@ export default function CheckIns({ refreshKey, onResolved }) {
           const opts = Array.isArray(it.options) ? it.options : null
           const chosen = picked[it.id]
           const needsPick = opts && chosen == null
+          const isYesNo = !opts && isYesNoText(it.text)
+          const act = acted[it.id]
+          const needsAct = isYesNo && act == null
           return (
-            <div key={it.id} className="checkin">
+            <div key={it.id} className={`checkin${leaving[it.id] ? ' is-leaving' : ''}`}>
               <p className="checkin-prompt">{prose(it.prompt)}</p>
               <div className="checkin-meta">
                 <span>{it.decision_type}</span>
@@ -83,16 +99,28 @@ export default function CheckIns({ refreshKey, onResolved }) {
                     </button>
                   ))}
                 </div>
+              ) : needsAct ? (
+                <div className="checkin-buttons">
+                  <button disabled={busy === it.id} onClick={() => setActed((a) => ({ ...a, [it.id]: 'did' }))}>
+                    I went ahead
+                  </button>
+                  <button disabled={busy === it.id} onClick={() => setActed((a) => ({ ...a, [it.id]: 'held_off' }))}>
+                    I held off
+                  </button>
+                </div>
               ) : (
                 <div className="checkin-buttons">
                   {opts && (
                     <span className="checkin-chose">“{opts[chosen]}” —</span>
                   )}
+                  {isYesNo && <span className="checkin-chose">{ACTION_LABELS[act]} —</span>}
                   {OUTCOMES.map((o) => (
                     <button
                       key={o.key}
                       disabled={busy === it.id}
-                      onClick={() => answer(it.id, o.key, opts ? chosen : undefined)}
+                      onClick={() =>
+                        answer(it.id, o.key, opts ? chosen : undefined, isYesNo ? act : undefined)
+                      }
                     >
                       {o.label}
                     </button>

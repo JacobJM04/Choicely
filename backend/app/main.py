@@ -2,16 +2,19 @@ import json
 import math
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from . import (
+    advice,
+    agent,
     calibration,
     checkins,
     classifier,
     community,
     dataset,
+    debrief,
     debt,
     gametheory,
     insights,
@@ -21,6 +24,7 @@ from . import (
     personality,
     profile,
     push,
+    reaction,
     reflection,
     regret,
     safety,
@@ -73,6 +77,10 @@ class OutcomeIn(BaseModel):
     # Required only when the decision was a compare-options one: which
     # option (0-based) the user actually went with.
     chosen_option: int | None = Field(default=None, ge=0, le=7)
+    # For a yes/no decision: what the user actually did, captured just before
+    # they say how it went. "did" | "held_off". Optional -- older clients and
+    # compare-options decisions don't send it.
+    action_taken: str | None = Field(default=None, max_length=16)
     # When true, the (category, outcome) pair is added to the shared pool
     # (see community.py). Anonymous -- no text, no id.
     contribute: bool = False
@@ -85,6 +93,7 @@ class ProfileIn(BaseModel):
 
 
 VALID_OUTCOMES = {"good", "neutral", "regret"}
+VALID_ACTIONS = {"did", "held_off"}
 
 
 def _serialize(row: dict) -> dict:
@@ -136,10 +145,10 @@ def create_profile(payload: ProfileIn):
 
 
 @app.post("/decisions")
-def create_decision(payload: DecisionIn):
+def create_decision(payload: DecisionIn, background_tasks: BackgroundTasks):
     option_texts = [o.strip() for o in payload.options if o.strip()]
     if len(option_texts) >= 2:
-        return _create_option_decision(payload.text.strip(), option_texts[:4])
+        return _create_option_decision(payload.text.strip(), option_texts[:4], background_tasks)
 
     text = payload.text.strip()
     if not text:
@@ -236,7 +245,23 @@ def create_decision(payload: DecisionIn):
         models.set_topic_id(decision_id, decision_id)
     models.recount_topic(final_topic_id)
 
-    return _serialize(models.get_decision(decision_id))
+    created = models.get_decision(decision_id)
+
+    # The friendly line under the card -- skip it when Choicely already
+    # answered outright (the auto-resolution is the advice). Generated in the
+    # background: it's a Claude call, and logging a decision shouldn't make
+    # someone wait on a nice-to-have note. The client picks it up on its next
+    # refetch; `advice` is just null until then.
+    if not auto_resolution_text:
+        background_tasks.add_task(_write_advice, decision_id, created, prior["category_label"])
+
+    agent.on_decision_logged(created)
+    return _serialize(created)
+
+
+def _write_advice(decision_id: int, decision: dict, category_label: str | None) -> None:
+    note = advice.for_decision(decision, category_label)
+    models.set_advice(decision_id, note)
 
 
 def _create_flagged_decision(text: str, flag: dict) -> dict:
@@ -256,7 +281,7 @@ def _create_flagged_decision(text: str, flag: dict) -> dict:
     return _serialize(models.get_decision(decision_id))
 
 
-def _create_option_decision(header: str, option_texts: list[str]) -> dict:
+def _create_option_decision(header: str, option_texts: list[str], background_tasks: BackgroundTasks) -> dict:
     flag = safety.screen(header, *option_texts)
     if flag and flag["tier"] == "crisis":
         return _create_flagged_decision(
@@ -289,7 +314,18 @@ def _create_option_decision(header: str, option_texts: list[str]) -> dict:
         }
     )
     models.set_topic_id(decision_id, decision_id)
-    return _serialize(models.get_decision(decision_id))
+    created = models.get_decision(decision_id)
+
+    background_tasks.add_task(_write_options_advice, decision_id, text, analysis)
+
+    agent.on_decision_logged(created)
+    return _serialize(created)
+
+
+def _write_options_advice(decision_id: int, header: str, analysis: dict) -> None:
+    note = advice.for_options(header, analysis)
+    if note:
+        models.set_advice(decision_id, note)
 
 
 @app.get("/decisions")
@@ -298,9 +334,11 @@ def get_decisions(include_seed: bool = False):
 
 
 @app.post("/decisions/{decision_id}/outcome")
-def record_outcome(decision_id: int, payload: OutcomeIn):
+def record_outcome(decision_id: int, payload: OutcomeIn, background_tasks: BackgroundTasks):
     if payload.outcome not in VALID_OUTCOMES:
         raise HTTPException(status_code=400, detail=f"outcome must be one of {sorted(VALID_OUTCOMES)}")
+    if payload.action_taken is not None and payload.action_taken not in VALID_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"action_taken must be one of {sorted(VALID_ACTIONS)}")
 
     existing = models.get_decision(decision_id)
     if existing is None:
@@ -322,7 +360,7 @@ def record_outcome(decision_id: int, payload: OutcomeIn):
         models.adopt_chosen_option(decision_id, idx, items[idx])
 
     # Race-safe: only one concurrent tap actually records the outcome.
-    if not models.update_outcome(decision_id, payload.outcome):
+    if not models.update_outcome(decision_id, payload.outcome, payload.action_taken):
         current = models.get_decision(decision_id)
         raise HTTPException(
             status_code=409,
@@ -333,7 +371,19 @@ def record_outcome(decision_id: int, payload: OutcomeIn):
     if payload.contribute and updated["prior_category_label"] and updated["source"] != "flagged_crisis":
         community.contribute(updated["prior_category_label"], payload.outcome)
 
+    # The warm line Choicely says back -- a nod when it went well, perspective
+    # when it didn't. Generated in the background for the same reason as the
+    # logging-time advice: it's a Claude call, and recording an outcome
+    # shouldn't hang on it. `outcome_reaction` is null until the next refetch.
+    background_tasks.add_task(_write_reaction, decision_id, updated, updated["prior_category_label"])
+
+    agent.on_outcome_recorded(updated)
     return _serialize(updated)
+
+
+def _write_reaction(decision_id: int, decision: dict, category_label: str | None) -> None:
+    reaction_line = reaction.for_outcome(decision, category_label)
+    models.set_outcome_reaction(decision_id, reaction_line)
 
 
 @app.get("/reflection")
@@ -342,10 +392,41 @@ def get_reflection():
     return reflection.weekly_reflection()
 
 
+class DebriefIn(BaseModel):
+    text: str = Field(max_length=_MAX_TEXT)
+
+
+@app.post("/debrief")
+def post_debrief(payload: DebriefIn):
+    """Read a messy paragraph about a decision someone's stuck on and hand back
+    a grounded read: the real question, what's at stake, their options, and a
+    recommendation built on their own recorded history. Does not log anything."""
+    text = payload.text.strip()
+    if len(text) < 8:
+        raise HTTPException(status_code=400, detail="Give me a sentence or two about the decision.")
+    flag = safety.screen(text)
+    if flag and flag["tier"] == "crisis":
+        return {"source": "flagged_crisis", "safety": flag}
+    return debrief.debrief(text)
+
+
+@app.get("/agent/activity")
+def get_agent_activity():
+    """The agent's log: what Choicely auto-resolved, checked in on, and spotted,
+    plus a live triage of the open backlog (answer now / keep watching / leave it)."""
+    return agent.activity()
+
+
 @app.get("/check-ins")
 def get_check_ins():
     """Decisions whose check-in time has come -- Choicely circling back so you don't have to."""
-    return checkins.pending(models.get_due_check_ins())
+    due = models.get_due_check_ins()
+    prompts = checkins.pending(due)
+    # Let Claude phrase the question when it's available; falls back to the
+    # template inside agent.checkin_question.
+    for row, prompt in zip(due, prompts):
+        prompt["prompt"] = agent.checkin_question(row)
+    return prompts
 
 
 class AdvanceIn(BaseModel):
@@ -368,7 +449,8 @@ def advance_time(payload: AdvanceIn):
         raise HTTPException(status_code=400, detail="hours must be a finite number")
     touched = models.shift_time(payload.hours)
     pushed = push.notify_due()
-    return {"shifted_hours": payload.hours, "rows_touched": touched, "push": pushed}
+    synced = agent.sync()
+    return {"shifted_hours": payload.hours, "rows_touched": touched, "push": pushed, "agent": synced}
 
 
 class PushSubscriptionIn(BaseModel):
@@ -449,7 +531,10 @@ def get_dashboard(include_seed: bool = False):
     return [
         {
             **topic,
-            "callout": f"You've reopened \"{topic['canonical_text']}\" {topic['times_logged']} times without deciding.",
+            "callout": (
+                f"You've logged \"{topic['canonical_text']}\" {topic['times_logged']} times "
+                f"and never recorded what you decided."
+            ),
         }
         for topic in topics
     ]

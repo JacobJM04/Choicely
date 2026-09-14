@@ -3,8 +3,10 @@
   border-left: 2px solid var(--accent);
   border-radius: 0 var(--radius) var(--radius) 0;
   background: var(--panel);
-  padding: 12px 14px;
+  padding: 13px 15px;
   margin-bottom: var(--s4);
+  animation: rise 0.5s var(--ease-out) backwards;
+  animation-delay: 90ms;
 }
 
 .checkins-head {
@@ -39,8 +41,27 @@
   flex-direction: column;
 }
 
-.checkin { padding: var(--s2) 0; }
+.checkin {
+  padding: var(--s2) 0;
+  overflow: hidden;
+  transition: opacity var(--dur-2) ease, max-height 0.32s var(--ease-in-out),
+    padding 0.32s var(--ease-in-out), margin 0.32s var(--ease-in-out);
+  max-height: 320px;
+}
 .checkin + .checkin { border-top: 1px solid var(--line); }
+
+.checkin.is-leaving {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  transform: translateX(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .checkin { transition: opacity var(--dur-1) ease; }
+  .checkin.is-leaving { max-height: 0; }
+}
 
 .checkin-prompt {
   margin: 0 0 var(--s2);
@@ -76,6 +97,11 @@
   color: var(--ink-2);
   font-size: 12px;
   cursor: pointer;
+  transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
-.checkin-buttons button:hover:not(:disabled) { border-color: var(--line-2); color: var(--ink); }
+.checkin-buttons button:hover:not(:disabled) {
+  border-color: var(--line-2);
+  color: var(--ink);
+  background: var(--panel-2);
+}
 .checkin-buttons button:disabled { opacity: 0.4; cursor: default; }

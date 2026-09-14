@@ -219,11 +219,12 @@ def regret_triggers(include_seed: bool = True) -> dict:
         rows,
         "back_and_forth",
         lambda r: (r["reopened_count"] or 0) >= 2,
-        "you kept reopening",
+        "you logged over and over",
         "you settled in one go",
         lambda tr, cr, ratio: (
-            f"The decisions you reopened again and again ended in regret {_pct(tr)}% of the time -- "
-            f"more than the ones you settled in one go ({_pct(cr)}%). Sitting with these isn't helping."
+            f"The decisions you logged again and again before settling ended in regret {_pct(tr)}% "
+            f"of the time -- more than the ones you settled in one go ({_pct(cr)}%). Sitting with "
+            f"these isn't helping."
         ),
     )
     candidates += _two_way(

@@ -5,7 +5,7 @@
 }
 
 .forecast-intro { margin-bottom: var(--s1); }
-.forecast-intro h2 { font-size: 20px; margin: 2px 0 var(--s1); }
+.forecast-intro h2 { font-size: 22px; letter-spacing: -0.02em; margin: 2px 0 var(--s2); }
 .forecast-intro p {
   margin: 0;
   font-size: 13px;
@@ -18,7 +18,14 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 15px 16px;
+  transition: border-color var(--dur-2) ease, box-shadow var(--dur-2) ease;
+  animation: rise 0.5s var(--ease-out) backwards;
 }
+.forecast-card:nth-child(2) { animation-delay: 0.06s; }
+.forecast-card:nth-child(3) { animation-delay: 0.12s; }
+.forecast-card:nth-child(4) { animation-delay: 0.18s; }
+.forecast-card:nth-child(n + 5) { animation-delay: 0.24s; }
+.forecast-card:hover { border-color: var(--line-2); box-shadow: var(--lift); }
 
 .forecast-card-head {
   display: flex;
@@ -83,6 +90,14 @@
   border-radius: 999px;
   background: var(--accent);
   opacity: 0.22;
+  transform-origin: left center;
+  animation: bar-grow 0.75s var(--ease-out) backwards;
+  animation-delay: 0.12s;
+}
+
+.rb-tick {
+  animation: fade-in 0.4s ease backwards;
+  animation-delay: 0.5s;
 }
 
 .rb-tick {

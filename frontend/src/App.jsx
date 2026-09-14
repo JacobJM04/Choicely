@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import Onboarding from './Onboarding'
 import Settings from './Settings'
@@ -7,15 +7,20 @@ import TrackRecord from './TrackRecord'
 import MentalLoad from './MentalLoad'
 import CheckIns from './CheckIns'
 import Reflection from './Reflection'
+import Debrief from './Debrief'
+import AgentActivity from './AgentActivity'
 import DemoControls from './DemoControls'
 import ThemeToggle from './ThemeToggle'
 import { NotifyNudge } from './Notifications'
 import { isContributing } from './community'
 import { API_BASE } from './api'
 import { prose, when } from './text'
+import { Count } from './motion'
 
 const OUTCOME_LABELS = { good: 'Went well', neutral: 'Fine', regret: 'Regret it' }
 const OUTCOME_PAST = { good: 'Went well', neutral: 'Was fine', regret: 'Regretted it' }
+const ACTION_LABELS = { did: 'You went ahead', held_off: 'You held off' }
+const ACTION_PAST = { did: 'Went ahead', held_off: 'Held off' }
 
 function Pct({ value }) {
   return <span className="num">{Math.round((value ?? 0) * 100)}%</span>
@@ -70,7 +75,7 @@ function PredictionBox({ decision }) {
       <div className="prior-box profile-prior">
         <span className="prior-tag">Tuned</span>
         <div className="prior-stat">
-          <span className="num">{Math.round(tuned * 100)}%</span>
+          <span className="num"><Count value={Math.round(tuned * 100)} suffix="%" /></span>
           <span>chance you'll regret it</span>
         </div>
         <p className="prior-note">
@@ -88,7 +93,9 @@ function PredictionBox({ decision }) {
     <div className="prior-box personal">
       <span className="prior-tag">{settled ? 'Personal' : 'Blended'}</span>
       <div className="prior-stat">
-        <span className="num">{Math.round((decision.blended_regret_estimate ?? 0) * 100)}%</span>
+        <span className="num">
+          <Count value={Math.round((decision.blended_regret_estimate ?? 0) * 100)} suffix="%" />
+        </span>
         <span>chance you'll regret it</span>
       </div>
       <p className="prior-note">
@@ -122,7 +129,7 @@ function BreakdownBox({ breakdown }) {
   )
 }
 
-function OptionsBox({ decision, onRecordOutcome }) {
+function OptionsBox({ decision, onRecordOutcome, freshOutcome }) {
   const { items, lean_idx, clear } = decision.options
   const resolved = decision.chosen_option_idx != null
   const [picked, setPicked] = useState(null)
@@ -143,7 +150,11 @@ function OptionsBox({ decision, onRecordOutcome }) {
           const isChosen = resolved && decision.chosen_option_idx === i
           const isLean = i === lean_idx && !resolved
           return (
-            <li key={i} className={`option-row${isChosen ? ' chosen' : ''}${isLean ? ' lean' : ''}`}>
+            <li
+              key={i}
+              className={`option-row${isChosen ? ' chosen' : ''}${isLean ? ' lean' : ''}`}
+              style={{ '--i': i }}
+            >
               <div className="option-main">
                 <span className="option-text">
                   {o.text}
@@ -172,6 +183,8 @@ function OptionsBox({ decision, onRecordOutcome }) {
             : `"${best.text}" edges it, but it's close with "${runnerUp.o.text}".`}
         </p>
       )}
+
+      {resolved && <OutcomeReaction decision={decision} fresh={freshOutcome} />}
 
       {!resolved && picked === null && (
         <div className="outcome-prompt option-pick">
@@ -205,6 +218,73 @@ function OptionsBox({ decision, onRecordOutcome }) {
   )
 }
 
+// The warm line Choicely says back once an outcome is recorded. Slides in,
+// tinted by how it went.
+function OutcomeReaction({ decision, fresh }) {
+  if (!decision.outcome_reaction) return null
+  return (
+    <p className={`outcome-reaction tone-${decision.outcome}${fresh ? ' is-fresh' : ''}`}>
+      <span className="outcome-reaction-mark">Choicely</span>
+      {prose(decision.outcome_reaction)}
+    </p>
+  )
+}
+
+function OutcomePrompt({ decision, onRecordOutcome, freshOutcome }) {
+  // A "should I …" decision is a yes/no action — ask what they did before
+  // asking how it went, so the outcome is tied to an actual choice.
+  const isYesNo = /^\s*should i\b/i.test(decision.text || '')
+  const [action, setAction] = useState(null)
+
+  if (decision.outcome) {
+    const past = OUTCOME_PAST[decision.outcome] ?? decision.outcome
+    return (
+      <>
+        <div className="outcome-recorded">
+          <span className={`dot ${decision.outcome}`} />
+          {decision.action_taken
+            ? `${ACTION_PAST[decision.action_taken]} · ${past.toLowerCase()}`
+            : past}
+        </div>
+        <OutcomeReaction decision={decision} fresh={freshOutcome} />
+      </>
+    )
+  }
+
+  if (isYesNo && action === null) {
+    return (
+      <div className="outcome-prompt">
+        <span>What did you decide?</span>
+        <div className="outcome-buttons">
+          <button onClick={() => setAction('did')}>I went ahead</button>
+          <button onClick={() => setAction('held_off')}>I held off</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="outcome-prompt">
+      <span>{isYesNo ? `${ACTION_LABELS[action]} — how did it go?` : 'How did it go?'}</span>
+      <div className="outcome-buttons">
+        {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => onRecordOutcome(decision.id, key, null, isYesNo ? action : null)}
+          >
+            {label}
+          </button>
+        ))}
+        {isYesNo && (
+          <button className="option-back" onClick={() => setAction(null)}>
+            change
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SafetyBox({ safety }) {
   return (
     <div className={`safety-box safety-${safety.tier}`}>
@@ -230,17 +310,34 @@ function SafetyBox({ safety }) {
   )
 }
 
-function DecisionCard({ decision, onRecordOutcome }) {
+function DecisionCard({ decision, onRecordOutcome, index = 0 }) {
   const isOptions = !!decision.options
   const crisis = decision.safety?.tier === 'crisis'
 
+  // Notice the moment an outcome lands (null -> set) so the card can
+  // acknowledge it: a soft flash in the outcome colour, reaction slides in.
+  const settled = decision.outcome || decision.chosen_option_idx != null
+  const prevSettled = useRef(settled)
+  const [flash, setFlash] = useState(false)
+  useEffect(() => {
+    if (settled && !prevSettled.current) {
+      setFlash(true)
+      const t = setTimeout(() => setFlash(false), 1400)
+      return () => clearTimeout(t)
+    }
+    prevSettled.current = settled
+  }, [settled])
+
   return (
-    <div className="decision-card">
+    <div
+      className={`decision-card anim-rise${flash ? ` flash-${decision.outcome || 'neutral'}` : ''}`}
+      style={{ '--i': Math.min(index, 7) }}
+    >
       <div className="decision-card-top">
         <p className="decision-text">
-          {decision.text}
+          {prose(decision.text)}
           {decision.reopened_count > 1 && (
-            <span className="reopened-badge">&nbsp;reopened {decision.reopened_count}×</span>
+            <span className="count-badge">&nbsp;logged {decision.reopened_count}×</span>
           )}
         </p>
         <div className="badges">
@@ -258,29 +355,28 @@ function DecisionCard({ decision, onRecordOutcome }) {
           {decision.safety && <SafetyBox safety={decision.safety} />}
 
           {isOptions ? (
-            <OptionsBox decision={decision} onRecordOutcome={onRecordOutcome} />
+            <OptionsBox
+              decision={decision}
+              onRecordOutcome={onRecordOutcome}
+              freshOutcome={flash}
+            />
           ) : (
             <>
               <PredictionBox decision={decision} />
               <BreakdownBox breakdown={decision.breakdown} />
 
-              {decision.outcome ? (
-                <div className="outcome-recorded">
-                  <span className={`dot ${decision.outcome}`} />
-                  {OUTCOME_PAST[decision.outcome] ?? decision.outcome}
-                </div>
-              ) : (
-                <div className="outcome-prompt">
-                  <span>How did it go?</span>
-                  <div className="outcome-buttons">
-                    {Object.entries(OUTCOME_LABELS).map(([key, label]) => (
-                      <button key={key} onClick={() => onRecordOutcome(decision.id, key)}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {decision.advice && (
+                <p className="decision-advice">
+                  <span className="decision-advice-mark">Choicely</span>
+                  {prose(decision.advice)}
+                </p>
               )}
+
+              <OutcomePrompt
+                decision={decision}
+                onRecordOutcome={onRecordOutcome}
+                freshOutcome={flash}
+              />
             </>
           )}
         </>
@@ -308,8 +404,13 @@ function ProfilePanel({ profile, onOpenSettings }) {
   return (
     <div>
       <p className="kicker">Profile</p>
-      <p className="rail-name">{profile.name}</p>
-      <p className="rail-sub">{profile.planning_label} decider</p>
+      <div className="rail-identity">
+        <span className="avatar avatar-lg">{profile.name.slice(0, 1).toUpperCase()}</span>
+        <div>
+          <p className="rail-name">{profile.name}</p>
+          <p className="rail-sub">{profile.planning_label} decider</p>
+        </div>
+      </div>
       {chips.length > 0 && (
         <div className="chips">
           {chips.map((c) => (
@@ -327,11 +428,11 @@ function StatsPanel({ total, resolved }) {
     <div>
       <p className="kicker">Activity</p>
       <div className="stat-row">
-        <span className="num">{total}</span>
+        <span className="num"><Count value={total} /></span>
         <span>decisions logged</span>
       </div>
       <div className="stat-row">
-        <span className="num">{resolved}</span>
+        <span className="num"><Count value={resolved} /></span>
         <span>outcomes recorded</span>
       </div>
     </div>
@@ -343,7 +444,7 @@ function DecisionDebt({ items, decisiveness }) {
   const prominent = typeof decisiveness === 'number' && decisiveness >= 0.6
   return (
     <div className="debt">
-      <h3>Decision debt</h3>
+      <p className="kicker">Decision debt</p>
       {prominent && <p className="debt-lead">You tend to deliberate. Still unresolved:</p>}
       <div className="debt-list">
         {items.map((item) => (
@@ -379,17 +480,47 @@ function PredictionExplainer() {
 function App() {
   const [profile, setProfile] = useState(undefined) // undefined = checking, null = none yet
   const [view, setView] = useState('main') // 'main' | 'settings' | 'retake'
-  const [mainTab, setMainTab] = useState('timeline') // 'timeline' | 'forecast' | 'record'
+  const [mainTab, setMainTab] = useState('timeline') // 'timeline' | 'forecast' | 'record' | 'agent'
   const [showAllDecisions, setShowAllDecisions] = useState(false)
   const [decisions, setDecisions] = useState([])
   const [debtItems, setDebtItems] = useState([])
   const [text, setText] = useState('')
   const [compareMode, setCompareMode] = useState(false)
+  const [debriefMode, setDebriefMode] = useState(false)
   const [options, setOptions] = useState(['', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [refreshTick, setRefreshTick] = useState(0)
-  const bumpRefresh = () => setRefreshTick((t) => t + 1)
+  const [scrolled, setScrolled] = useState(false)
+  // A second, delayed bump piggybacks on every refresh: advice and outcome
+  // reactions are Claude calls generated in the background (so logging a
+  // decision or recording an outcome doesn't make you wait on them) — this
+  // is what picks them up once they land, without a manual page reload.
+  function bumpRefresh() {
+    setRefreshTick((t) => t + 1)
+    setTimeout(() => setRefreshTick((t) => t + 1), 3500)
+  }
+
+  // Topbar gains a hairline shadow once the page moves under it.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // Mental-load tiles jump to where that number lives.
+  function handleNavigate(target) {
+    if (target === 'agent' || target === 'record') {
+      setMainTab(target)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    setMainTab('timeline')
+    requestAnimationFrame(() =>
+      document.getElementById('decision-log')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    )
+  }
 
   function refreshDashboard() {
     fetch(`${API_BASE}/dashboard`)
@@ -442,11 +573,12 @@ function App() {
     }
   }
 
-  async function handleRecordOutcome(decisionId, outcome, chosenOption) {
+  async function handleRecordOutcome(decisionId, outcome, chosenOption, actionTaken) {
     setError('')
     try {
       const body = { outcome, contribute: isContributing() }
       if (chosenOption != null) body.chosen_option = chosenOption
+      if (actionTaken != null) body.action_taken = actionTaken
       const res = await fetch(`${API_BASE}/decisions/${decisionId}/outcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -498,7 +630,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <header className={`topbar${scrolled ? ' is-scrolled' : ''}`}>
         <span className="brand">
           <span className="brand-mark" />
           Choicely
@@ -513,29 +645,42 @@ function App() {
           <button className={mainTab === 'record' ? 'active' : ''} onClick={() => setMainTab('record')}>
             Track record
           </button>
+          <button className={mainTab === 'agent' ? 'active' : ''} onClick={() => setMainTab('agent')}>
+            Agent
+          </button>
         </nav>
         <span className="topbar-spacer" />
         <div className="topbar-actions">
           <ThemeToggle />
           <button className="topbar-who" onClick={() => setView('settings')}>
             <span className="avatar">{profile.name.slice(0, 1).toUpperCase()}</span>
-            {profile.name}
+            <span className="topbar-who-name">{profile.name}</span>
           </button>
         </div>
       </header>
 
       <div className="app-grid">
         <main className="col-main">
+         <div className="tab-pane" key={mainTab}>
           {mainTab === 'timeline' && (
             <>
-              <div className="section-head">
+              <div className="section-head anim-rise" style={{ '--i': 0 }}>
                 <p className="kicker">Timeline</p>
                 <h1>What's on your mind, {profile.name}?</h1>
                 <p>Log a decision. Choicely classifies it, estimates the regret, and follows up.</p>
               </div>
 
-              {compareMode ? (
-                <form className="composer-compare" onSubmit={handleSubmit}>
+              {debriefMode ? (
+                <Debrief
+                  onClose={() => setDebriefMode(false)}
+                  onLogged={(created) => {
+                    setDecisions((prev) => [created, ...prev])
+                    setDebriefMode(false)
+                    bumpRefresh()
+                  }}
+                />
+              ) : compareMode ? (
+                <form className="composer-compare anim-rise" style={{ '--i': 1 }} onSubmit={handleSubmit}>
                   <input
                     type="text"
                     className="compare-context"
@@ -593,12 +738,13 @@ function App() {
                       type="submit"
                       disabled={loading || options.filter((o) => o.trim()).length < 2}
                     >
-                      Compare
+                      {loading && <span className="btn-spinner" aria-hidden="true" />}
+                      {loading ? 'Comparing…' : 'Compare'}
                     </button>
                   </div>
                 </form>
               ) : (
-                <form className="composer" onSubmit={handleSubmit}>
+                <form className="composer anim-rise" style={{ '--i': 1 }} onSubmit={handleSubmit}>
                   <input
                     type="text"
                     placeholder="should I skip leg day today"
@@ -607,56 +753,94 @@ function App() {
                     disabled={loading}
                   />
                   <button type="submit" disabled={loading || !text.trim()}>
-                    Log it
+                    {loading && <span className="btn-spinner" aria-hidden="true" />}
+                    {loading ? 'Logging…' : 'Log it'}
                   </button>
                 </form>
               )}
 
-              {!compareMode && (
-                <button className="compare-toggle" onClick={() => setCompareMode(true)}>
-                  …or compare a few options
-                </button>
+              {!compareMode && !debriefMode && (
+                <div className="composer-alts">
+                  <button className="compare-toggle" onClick={() => setCompareMode(true)}>
+                    …or compare a few options
+                  </button>
+                  <button className="compare-toggle" onClick={() => setDebriefMode(true)}>
+                    …or talk through one you're stuck on
+                  </button>
+                </div>
               )}
 
               {error && <p className="error">{error}</p>}
 
-              <CheckIns refreshKey={refreshTick} onResolved={bumpRefresh} />
-              <NotifyNudge decisionCount={decisions.length} />
-              <MentalLoad refreshKey={refreshTick} />
-              <Reflection refreshKey={refreshTick} />
-
-              {timelineDecisions.length === 0 ? (
-                <p className="empty-state">Nothing logged yet. Type your first decision above.</p>
-              ) : (
+              {!debriefMode && (
                 <>
-                  <div className="timeline">
-                    {(showAllDecisions ? timelineDecisions : timelineDecisions.slice(0, 6)).map((d) => (
-                      <DecisionCard key={d.id} decision={d} onRecordOutcome={handleRecordOutcome} />
-                    ))}
+                  <CheckIns refreshKey={refreshTick} onResolved={bumpRefresh} />
+                  <NotifyNudge decisionCount={decisions.length} />
+
+                  <div className="overview-grid anim-rise" style={{ '--i': 2 }}>
+                    <MentalLoad refreshKey={refreshTick} onNavigate={handleNavigate} />
+                    <Reflection refreshKey={refreshTick} />
                   </div>
-                  {timelineDecisions.length > 6 && (
-                    <button className="show-all-btn" onClick={() => setShowAllDecisions((v) => !v)}>
-                      {showAllDecisions
-                        ? 'Show less'
-                        : `${timelineDecisions.length - 6} earlier decision${timelineDecisions.length - 6 !== 1 ? 's' : ''}`}
-                    </button>
-                  )}
                 </>
+              )}
+
+              {!debriefMode && (
+              <section className="col-block" id="decision-log">
+                <div className="col-block-head anim-rise" style={{ '--i': 3 }}>
+                  <p className="kicker">Decision log</p>
+                  {timelineDecisions.length > 0 && (
+                    <span className="col-block-count">{timelineDecisions.length}</span>
+                  )}
+                </div>
+
+                {timelineDecisions.length === 0 ? (
+                  <p className="empty-state">Nothing logged yet. Type your first decision above.</p>
+                ) : (
+                  <>
+                    <div className="timeline">
+                      {(showAllDecisions ? timelineDecisions : timelineDecisions.slice(0, 6)).map((d, i) => (
+                        <DecisionCard
+                          key={d.id}
+                          decision={d}
+                          onRecordOutcome={handleRecordOutcome}
+                          index={i}
+                        />
+                      ))}
+                    </div>
+                    {timelineDecisions.length > 6 && (
+                      <button className="show-all-btn" onClick={() => setShowAllDecisions((v) => !v)}>
+                        {showAllDecisions
+                          ? 'Show less'
+                          : `${timelineDecisions.length - 6} earlier decision${timelineDecisions.length - 6 !== 1 ? 's' : ''}`}
+                      </button>
+                    )}
+                  </>
+                )}
+              </section>
               )}
             </>
           )}
 
           {mainTab === 'forecast' && <RegretForecast key={refreshTick} />}
           {mainTab === 'record' && <TrackRecord refreshKey={refreshTick} />}
+          {mainTab === 'agent' && <AgentActivity refreshKey={refreshTick} />}
+         </div>
         </main>
 
         <aside className="rail">
           <ProfilePanel profile={profile} onOpenSettings={() => setView('settings')} />
           <StatsPanel total={decisions.length} resolved={resolved} />
           <DecisionDebt items={debtItems} decisiveness={profile.decisiveness} />
-          <PredictionExplainer />
         </aside>
       </div>
+
+      {(mainTab === 'timeline' || mainTab === 'forecast') && (
+        <footer className="app-footer">
+          <div className="app-footer-inner">
+            <PredictionExplainer />
+          </div>
+        </footer>
+      )}
 
       <DemoControls onAdvance={bumpRefresh} />
     </div>

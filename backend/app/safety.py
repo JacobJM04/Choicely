@@ -122,7 +122,9 @@ financial, none>"}}
   - medical: this could be a medical emergency
   - financial: a ruinous money move (payday loan, gambling savings, cashing out retirement)
   - none: an ordinary everyday decision
-When unsure between a crisis category and none, choose the crisis category."""
+Everyday hyperbole about a normal activity is "none" -- "this workout is killing
+me", "I'm dying to see that movie", "my boss will murder me" are not crises.
+When genuinely unsure between a crisis category and none, choose the crisis category."""
 
 
 def _flag(tier: str, category: str) -> dict:
@@ -147,13 +149,15 @@ def _heuristic_screen(blob: str) -> dict | None:
 def _claude_screen(blob: str) -> dict | None:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY)
+    # Bounded for the same reason as classifier.py -- the crisis screen runs
+    # first, on the critical path of every decision logged.
+    client = anthropic.Anthropic(api_key=_ANTHROPIC_API_KEY, max_retries=1, timeout=12.0)
     message = client.messages.create(
         model="claude-sonnet-5",
-        max_tokens=60,
+        max_tokens=200,
         messages=[{"role": "user", "content": _CLAUDE_PROMPT.format(text=blob[:600])}],
     )
-    raw = message.content[0].text
+    raw = next((b.text for b in message.content if getattr(b, "type", None) == "text"), "")
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     category = json.loads(match.group(0) if match else raw).get("category", "none")
     if category in _TIER_BY_CATEGORY:

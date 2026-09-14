@@ -8,6 +8,20 @@ from app import models
 
 
 @pytest.fixture(autouse=True)
+def no_live_llm(monkeypatch):
+    """Keep the suite hermetic: force every Claude seam onto its heuristic
+    fallback even when a real ANTHROPIC_API_KEY is configured (e.g. in
+    backend/.env). Each module caches the key at import as a constant, so
+    clearing os.environ isn't enough -- patch the constants directly."""
+    from app import classifier, gametheory, llm, reflection, safety
+
+    monkeypatch.setattr(llm, "_API_KEY", None, raising=False)
+    monkeypatch.setattr(llm, "_DISABLED", True, raising=False)
+    for mod in (classifier, gametheory, safety, reflection):
+        monkeypatch.setattr(mod, "_ANTHROPIC_API_KEY", None, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def fresh_db(monkeypatch):
     tmp = Path(tempfile.mkdtemp()) / "test.db"
     monkeypatch.setattr(models, "_DB_PATH", tmp)

@@ -91,6 +91,16 @@ _NEW_COLUMNS = {
         # reference-dataset rate, and how many shared outcomes moved it.
         "reference_regret_rate": "REAL",
         "community_n": "INTEGER",
+        # A short, friendly, second-person note (see advice.py) generated once
+        # when the decision is logged and stored so it survives a refetch.
+        "advice": "TEXT",
+        # For a yes/no decision: what the user actually did before recording
+        # how it went ("did" | "held_off"). NULL for options / not-yet-resolved.
+        "action_taken": "TEXT",
+        # The warm line Choicely says back once an outcome is recorded --
+        # a compliment when it went well, perspective when it didn't (see
+        # reaction.py). Generated once, stored so it survives a refetch.
+        "outcome_reaction": "TEXT",
     },
 }
 
@@ -112,6 +122,35 @@ CREATE TABLE IF NOT EXISTS community_outcomes (
     category_label TEXT NOT NULL,
     outcome TEXT NOT NULL,
     is_seed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+"""
+
+# A tiny persistent cache for Claude responses, keyed by a hash of the exact
+# prompt. The demo replays the same handful of prompts (the same seeded
+# history, the same decisions) over and over -- caching keeps the live demo
+# fast and its API spend near zero without changing behaviour.
+_LLM_CACHE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS llm_cache (
+    prompt_hash TEXT PRIMARY KEY,
+    response TEXT NOT NULL,
+    model TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+"""
+
+# The visible record of what Choicely did on its own -- auto-resolved a
+# decision, raised or held a check-in, closed a loop, spotted a pattern.
+# This is the agent's activity log (see agent.py); the UI renders it as
+# "What Choicely handled for you".
+_AGENT_EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS agent_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    decision_id INTEGER,
+    title TEXT NOT NULL,
+    detail TEXT,
+    reasoning TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 """
@@ -145,6 +184,8 @@ def init_db() -> None:
         conn.executescript(_SCHEMA)
         conn.executescript(_PUSH_SCHEMA)
         conn.executescript(_COMMUNITY_SCHEMA)
+        conn.executescript(_LLM_CACHE_SCHEMA)
+        conn.executescript(_AGENT_EVENTS_SCHEMA)
         for table, columns in _NEW_COLUMNS.items():
             for column, col_type in columns.items():
                 try:
@@ -383,17 +424,32 @@ def get_debt_topics(include_seed: bool = False) -> list[dict]:
         return [dict(row) for row in rows]
 
 
-def update_outcome(decision_id: int, outcome: str) -> bool:
+def update_outcome(decision_id: int, outcome: str, action_taken: str | None = None) -> bool:
     """Record the outcome only if none is set yet. Returns True if this call
     is the one that recorded it -- the `WHERE outcome IS NULL` makes it
-    race-safe (two concurrent taps can't both win)."""
+    race-safe (two concurrent taps can't both win). action_taken (what the
+    user did on a yes/no call) is stored alongside when given."""
     with get_connection() as conn:
         cursor = conn.execute(
-            "UPDATE decisions SET outcome = ?, outcome_recorded_at = datetime('now', 'localtime') "
+            "UPDATE decisions SET outcome = ?, "
+            "action_taken = COALESCE(?, action_taken), "
+            "outcome_recorded_at = datetime('now', 'localtime') "
             "WHERE id = ? AND outcome IS NULL",
-            (outcome, decision_id),
+            (outcome, action_taken, decision_id),
         )
         return cursor.rowcount == 1
+
+
+def set_advice(decision_id: int, advice: str) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE decisions SET advice = ? WHERE id = ?", (advice, decision_id))
+
+
+def set_outcome_reaction(decision_id: int, reaction: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE decisions SET outcome_reaction = ? WHERE id = ?", (reaction, decision_id)
+        )
 
 
 def adopt_chosen_option(decision_id: int, idx: int, option: dict) -> None:
@@ -547,6 +603,100 @@ def community_totals() -> dict:
     return {"total": total, "contributed": contributed}
 
 
+def llm_cache_get(prompt_hash: str) -> str | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT response FROM llm_cache WHERE prompt_hash = ?", (prompt_hash,)
+        ).fetchone()
+        return row["response"] if row else None
+
+
+def llm_cache_put(prompt_hash: str, response: str, model: str | None = None) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO llm_cache (prompt_hash, response, model) VALUES (?, ?, ?)
+            ON CONFLICT(prompt_hash) DO UPDATE SET response = excluded.response, model = excluded.model
+            """,
+            (prompt_hash, response, model),
+        )
+
+
+def record_agent_event(
+    event_type: str,
+    title: str,
+    detail: str | None = None,
+    decision_id: int | None = None,
+    reasoning: str | None = None,
+    created_at: str | None = None,
+) -> int:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO agent_events (event_type, decision_id, title, detail, reasoning, created_at)
+            VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')))
+            """,
+            (event_type, decision_id, title, detail, reasoning, created_at),
+        )
+        return cursor.lastrowid
+
+
+def agent_event_exists(event_type: str, decision_id: int) -> bool:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM agent_events WHERE event_type = ? AND decision_id = ? LIMIT 1",
+            (event_type, decision_id),
+        ).fetchone()
+        return row is not None
+
+
+def agent_event_exists_for_topic(event_type: str, topic_id: int) -> bool:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT 1 FROM agent_events e JOIN decisions d ON d.id = e.decision_id
+            WHERE e.event_type = ? AND d.topic_id = ? LIMIT 1
+            """,
+            (event_type, topic_id),
+        ).fetchone()
+        return row is not None
+
+
+def list_agent_events(limit: int = 40) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM agent_events ORDER BY created_at DESC, id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def agent_event_type_counts() -> dict[str, int]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT event_type, COUNT(*) AS n FROM agent_events GROUP BY event_type"
+        ).fetchall()
+        return {row["event_type"]: row["n"] for row in rows}
+
+
+def clear_agent_events() -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM agent_events")
+
+
+def get_open_decisions(include_seed: bool = True) -> list[dict]:
+    """Every decision with no outcome recorded yet, newest first -- the
+    agent's backlog."""
+    seed_clause = "" if include_seed else "WHERE is_seed = 0"
+    where = seed_clause or "WHERE 1=1"
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM decisions {where} AND outcome IS NULL "
+            f"AND source != 'flagged_crisis' ORDER BY id DESC"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
 def shift_time(hours: float) -> int:
     """Demo aid: move every decision's clock backward by `hours` so pending
     check-ins come due and the weekly window still contains recent history.
@@ -565,4 +715,5 @@ def shift_time(hours: float) -> int:
             """,
             (delta, delta, delta),
         )
+        conn.execute("UPDATE agent_events SET created_at = datetime(created_at, ?)", (delta,))
         return cursor.rowcount

@@ -7,11 +7,12 @@
    ========================================================================== */
 
 :root {
-  /* surfaces */
-  --bg: #fbfbfc;
+  /* surfaces — the ground is a touch off-white so white panels read as
+     panels without needing a shadow */
+  --bg: #f5f6f8;
   --panel: #ffffff;
-  --panel-2: #f3f4f6;      /* sunken / inset */
-  --panel-3: #ececef;
+  --panel-2: #f1f2f5;      /* sunken / inset */
+  --panel-3: #e8e9ee;
 
   /* ink */
   --ink: #10131a;
@@ -49,11 +50,23 @@
   --radius-sm: 4px;
   --radius-lg: 9px;
 
+  /* motion — one vocabulary, used everywhere */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);      /* settle into place */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);   /* symmetric moves */
+  --ease-emphasis: cubic-bezier(0.34, 1.56, 0.64, 1); /* a touch of overshoot, sparingly */
+  --dur-1: 0.14s;   /* hover / press */
+  --dur-2: 0.24s;   /* small enters, toggles */
+  --dur-3: 0.42s;   /* card / panel enters */
+  --dur-4: 0.6s;    /* full-page settle */
+
   --font: "Hanken Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --maxw: 1120px;
   --tab-h: 48px;
+
+  /* the one sanctioned elevation — hover lift only, never at rest */
+  --lift: 0 1px 2px rgba(16, 19, 26, 0.04), 0 10px 24px -14px rgba(16, 19, 26, 0.16);
 
   font-family: var(--font);
   font-size: 14px;
@@ -67,18 +80,18 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b0c0f;
-    --panel: #121418;
-    --panel-2: #16191e;
-    --panel-3: #1c2026;
+    --bg: #0a0b0d;
+    --panel: #15181d;
+    --panel-2: #1a1e24;
+    --panel-3: #22272f;
 
     --ink: #e8eaee;
     --ink-2: #99a0ac;
     --ink-3: #6a717c;
-    --ink-inv: #0b0c0f;
+    --ink-inv: #0a0b0d;
 
-    --line: #232830;
-    --line-2: #2e343d;
+    --line: #262c35;
+    --line-2: #333a44;
 
     --accent: #6f8bf0;
     --accent-2: #849cf3;
@@ -94,20 +107,22 @@
     --m-good: #58a97e;
     --m-neutral: #7d838e;
     --m-regret: #d07a68;
+
+    --lift: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 28px -14px rgba(0, 0, 0, 0.55);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0c0f;
-  --panel: #121418;
-  --panel-2: #16191e;
-  --panel-3: #1c2026;
+  --bg: #0a0b0d;
+  --panel: #15181d;
+  --panel-2: #1a1e24;
+  --panel-3: #22272f;
   --ink: #e8eaee;
   --ink-2: #99a0ac;
   --ink-3: #6a717c;
-  --ink-inv: #0b0c0f;
-  --line: #232830;
-  --line-2: #2e343d;
+  --ink-inv: #0a0b0d;
+  --line: #262c35;
+  --line-2: #333a44;
   --accent: #6f8bf0;
   --accent-2: #849cf3;
   --accent-wash: #171b2b;
@@ -120,6 +135,8 @@
   --m-good: #58a97e;
   --m-neutral: #7d838e;
   --m-regret: #d07a68;
+
+  --lift: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 28px -14px rgba(0, 0, 0, 0.55);
 }
 
 * { box-sizing: border-box; }
@@ -173,5 +190,136 @@ button { font-family: inherit; }
   text-transform: uppercase;
   color: var(--ink-3);
   margin: 0;
+}
+
+/* ============================================================================
+   Motion — restrained. Things settle into place; they don't bounce. Every
+   rule here is switched off under prefers-reduced-motion (bottom of file).
+   ========================================================================== */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pane-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes sheen {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* a card acknowledging that an outcome just landed — a soft wash of the
+   outcome colour that fades back out. Colour set per-instance via --flash. */
+@keyframes outcome-flash {
+  0%   { box-shadow: 0 0 0 0 var(--flash, transparent); border-color: var(--flash-edge, var(--line)); }
+  15%  { box-shadow: 0 0 0 5px var(--flash, transparent); border-color: var(--flash-edge, var(--line)); }
+  100% { box-shadow: 0 0 0 0 transparent; border-color: var(--line); }
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.94); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+
+/* stagger helper: set --i on the element (or its parent sets it per child) */
+.anim-rise {
+  animation: rise var(--dur-4) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+/* tab content swap */
+.tab-pane {
+  animation: pane-in var(--dur-3) var(--ease-out) backwards;
+}
+
+/* a small inline spinner for a button mid-request -- picks up currentColor,
+   so it reads correctly on both dark-fill and light-ghost buttons */
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.75;
+  animation: spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation: none; }
+}
+
+/* ---- skeletons — a real shape while data loads, not a "Loading…" string ---- */
+
+.is-loading,
+.skeleton {
+  background: linear-gradient(
+    100deg,
+    var(--panel-2) 40%,
+    var(--panel-3) 50%,
+    var(--panel-2) 60%
+  );
+  background-size: 200% 100%;
+  animation: sheen 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+.is-loading { color: transparent !important; }
+
+.skeleton-line {
+  height: 0.72em;
+  margin: 0.4em 0;
+  border-radius: 3px;
+}
+.skeleton-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  background: var(--panel);
+}
+.skeleton-block {
+  border-radius: var(--radius);
+  background: linear-gradient(100deg, var(--panel-2) 40%, var(--panel-3) 50%, var(--panel-2) 60%);
+  background-size: 200% 100%;
+  animation: sheen 1.5s ease-in-out infinite;
+}
+
+/* interactive press — global, tiny */
+button:active { transform: translateY(0.5px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .anim-rise,
+  .tab-pane { animation: none; }
+  button:active { transform: none; }
+  .is-loading, .skeleton, .skeleton-block { animation: none; }
 }
 

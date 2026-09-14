@@ -28,7 +28,9 @@ docker exec <container> python seed_demo_data.py --reset
 
 | var | purpose |
 |-----|---------|
-| `ANTHROPIC_API_KEY` | switches classification, the game-theory breakdown, the weekly reflection, and the crisis screen from heuristics to the real Claude API. Optional — everything runs without it. |
+| `ANTHROPIC_API_KEY` | switches the whole Claude seam on: the **grounded debrief**, the **agent's check-in phrasing + backlog triage**, the weekly reflection, classification, the game-theory breakdown, and the crisis screen all move from heuristics to the real API. Optional — everything runs without it. |
+| `CHOICELY_LLM_MODEL` | model for every Claude call. Default `claude-sonnet-5`. Set `claude-opus-5` for a judged run. |
+| `CHOICELY_LLM_DISABLED` | `1` forces the heuristic path even with a key present (keeps a public demo's spend at exactly zero). |
 | `CHOICELY_DB` | SQLite path. Defaults to `/srv/data/choicely.db` in the image. Point at a mounted volume. |
 | `CHOICELY_DATA` | dir for the VAPID keypair files. Defaults to `/srv/data`. |
 | `VAPID_PRIVATE_KEY` / `VAPID_PUBLIC_KEY` | supply the Web Push keypair directly (PEM contents + base64url app-server key) instead of a file, so push subscriptions survive a redeploy on a platform without a volume. Generate a pair by running the container once with a volume and copying `/srv/data/vapid_*`. |
@@ -45,10 +47,14 @@ Build the frontend with `VITE_API_BASE=https://your-api-host` and host
 
 ## Platform notes
 
-- **Render / Railway / Fly.io**: point at the `Dockerfile`, attach a
-  persistent volume mounted at `/srv/data`, set `ANTHROPIC_API_KEY` if you
-  want the Claude paths. Fly needs `fly volumes create`; Render's disks
-  and Railway's volumes work the same way.
+- **Render (one click)**: `render.yaml` in the repo root is a Blueprint —
+  New → Blueprint → pick the repo and it provisions the Docker web service
+  + a 1 GB disk at `/srv/data`. Then set `ANTHROPIC_API_KEY` in the
+  Environment tab and redeploy; seed the persona from the Shell tab with
+  `python seed_demo_data.py --reset`.
+- **Railway / Fly.io**: point at the `Dockerfile`, attach a persistent
+  volume mounted at `/srv/data`, set `ANTHROPIC_API_KEY`. Fly needs
+  `fly volumes create`; Railway's volumes work like Render's disks.
 - **Web Push requires HTTPS** (all three platforms terminate TLS for you,
   so this is automatic on a `*.onrender.com` / `*.up.railway.app` /
   `*.fly.dev` URL).

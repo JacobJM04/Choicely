@@ -127,7 +127,24 @@ export default function RegretForecast() {
   }, [])
 
   if (error) return <p className="error">{error}</p>
-  if (!forecasts) return <p className="empty-state">Loading…</p>
+  if (!forecasts) {
+    return (
+      <div className="forecast-list" aria-busy="true">
+        <div className="forecast-intro">
+          <div className="skeleton skeleton-line" style={{ width: '40%', height: '1.2em' }} />
+          <div className="skeleton skeleton-line" style={{ width: '80%' }} />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton skeleton-line" style={{ width: '30%' }} />
+            <div className="skeleton skeleton-line" style={{ width: '65%' }} />
+            <div className="skeleton skeleton-block" style={{ height: 34, margin: '16px 0' }} />
+            <div className="skeleton skeleton-line" style={{ width: '90%' }} />
+          </div>
+        ))}
+      </div>
+    )
+  }
   if (forecasts.length === 0) {
     return (
       <p className="empty-state">

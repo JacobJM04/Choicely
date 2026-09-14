@@ -11,19 +11,23 @@ IS Maya's history for the purposes of the demo -- so it flows into the
 mental-load dashboard, the regret forecast, and the debt dashboard the
 same way a real user's would.
 
-Seeds:
-  1. 5 past "skip the workout" decisions -- confidence reaches 50%, so a
-     live "should I skip leg day" shows a blended estimate pulling away
-     from the 58% dataset prior.
-  2. 10 past "skip breakfast" decisions (mostly regret) -- confidence
+Deliberately small and easy to narrate in a demo -- three short stories,
+not a wall of data:
+  1. 10 past "skip breakfast" decisions (mostly regret) -- confidence
      saturates at 100%, so a live "should I skip breakfast" triggers
      auto-resolve: "You always regret skipping meals, so: eat something."
+     This is the single best "watch it just answer" beat -- lead with it.
+  2. 5 past "go out even though tired" decisions (mostly good) -- the
+     opposite story: population + profile both expect regret, her own
+     history overrides it in the *good* direction.
   3. 4 repeated, still-undecided "should I quit this club" entries -- shows
-     up on the decision-debt dashboard as a reopened-without-deciding
+     up on the decision-debt dashboard as a logged-it-again-without-deciding
      pattern.
   4. 2 recent decisions with no outcome yet and a check-in nearly due --
      advance the demo clock once (bottom-right control) and Choicely
      proactively asks how they went.
+  5. 1 compare-options decision (the weekend trip) -- shows the non-yes/no
+     path.
 """
 import json
 from datetime import datetime, timedelta
@@ -33,16 +37,7 @@ from app import checkins, dataset, debt, models, options, personality, profile a
 # (text, outcome, days_ago, hour) -- hour spreads the history across the day so
 # the regret-trigger analysis has a real time-of-day signal to find. Maya's
 # pattern: breakfast-skips happen in the morning rush and she regrets almost
-# all of them; her evening social calls almost always land well; her daytime
-# workout calls are mixed.
-WORKOUT_SEEDS = [
-    ("should I skip the gym today, feeling exhausted", "good", 6, 13),
-    ("skip leg day, still sore from yesterday", "good", 5, 12),
-    ("should I skip my run this morning", "neutral", 4, 15),
-    ("thinking about skipping the gym tonight", "good", 2, 16),
-    ("skip workout, too busy with work", "regret", 1, 14),
-]
-
+# all of them; her evening social calls almost always land well.
 BREAKFAST_SEEDS = [
     ("should I skip breakfast, out the door late", "regret", 22, 7),
     ("skip breakfast again, not hungry", "regret", 19, 8),
@@ -59,8 +54,8 @@ BREAKFAST_SEEDS = [
 # Social: forcing herself out when low on energy. She's a planner who fears
 # missing out, so both the population prior AND her tuned prior read this as
 # fairly regret-prone -- but her actual outcomes say she's almost always glad
-# she went. A third forecast card, and the clearest "your history overrides
-# the prior, in the good direction" story.
+# she went. The second forecast card, and the clean opposite of breakfast:
+# "your history overrides the prior, in the good direction."
 SOCIAL_SEEDS = [
     ("should I go out tonight even though I'm exhausted", "good", 20, 19),
     ("drag myself to the party this weekend or bail", "good", 15, 20),
@@ -259,7 +254,7 @@ def _insert_seeded(
 # planner AND someone who fears inaction both read "skipping" as regret-prone --
 # so the population -> profile-tuned -> personality-tuned staircase is clearly
 # visible on the forecast, and her actual history then either confirms it
-# (breakfast, up to 90%) or overrides it (workouts, down to ~44%).
+# (breakfast, up to 90%) or overrides it (going out tired, down to ~30%).
 # decisiveness 1.0 also lights up the "you tend to deliberate" debt panel.
 DEMO_PROFILE = {
     "name": "Maya",
@@ -293,9 +288,6 @@ def seed() -> None:
     if models.get_profile() is None:
         _seed_profile()
 
-    for text, outcome, days_ago, hour in WORKOUT_SEEDS:
-        _insert_seeded(text, "health", "low", "low", outcome, days_ago, hour)
-
     for text, outcome, days_ago, hour in BREAKFAST_SEEDS:
         _insert_seeded(text, "health", "low", "low", outcome, days_ago, hour)
 
@@ -310,11 +302,17 @@ def seed() -> None:
 
     _insert_option_seed(*OPTION_SEED)
 
-    total = len(WORKOUT_SEEDS) + len(BREAKFAST_SEEDS) + len(SOCIAL_SEEDS) + len(DEBT_SEEDS)
+    # Rebuild the agent activity log from the history we just inserted, so the
+    # Agent tab has something to show on a fresh demo.
+    from app import agent
+
+    agent.backfill_events()
+
+    total = len(BREAKFAST_SEEDS) + len(SOCIAL_SEEDS) + len(DEBT_SEEDS)
     print(f"Seeded profile '{DEMO_PROFILE['name']}' + {total} decisions "
-          f"({len(WORKOUT_SEEDS)} workout, {len(BREAKFAST_SEEDS)} breakfast, "
-          f"{len(SOCIAL_SEEDS)} social, {len(DEBT_SEEDS)} debt) plus {len(PENDING_SEEDS)} "
-          f"pending + 1 compare-options (advance the demo clock once to see check-ins).")
+          f"({len(BREAKFAST_SEEDS)} breakfast, {len(SOCIAL_SEEDS)} social, {len(DEBT_SEEDS)} debt) "
+          f"plus {len(PENDING_SEEDS)} pending + 1 compare-options "
+          f"(advance the demo clock once to see check-ins).")
 
 
 def reset() -> None:
@@ -325,7 +323,8 @@ def reset() -> None:
         conn.execute("DELETE FROM decisions")
         conn.execute("DELETE FROM user_profile")
         conn.execute("DELETE FROM community_outcomes")
-        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('decisions', 'community_outcomes')")
+        conn.execute("DELETE FROM agent_events")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('decisions', 'community_outcomes', 'agent_events')")
     seed()
 
 

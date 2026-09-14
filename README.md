@@ -7,6 +7,41 @@ outright once it's seen enough, checks back on its own to close the loop,
 and tells you the patterns a friend would notice.
 
 Demo walkthrough: **DEMO.md** (4-minute run of show).
+Hackathon writeup: **SUBMISSION.md**.
+
+## How Choicely uses Claude
+
+Claude is the reasoning layer on top of a deterministic decision model. The
+model does the arithmetic (the prior-to-personal regret blend, calibration,
+trigger detection); Claude does the judgment that arithmetic can't.
+
+1. **Grounded decision debrief** (`backend/app/debrief.py`) — the signature
+   feature. You dump a messy paragraph about a decision you're stuck on.
+   Choicely runs retrieval over *your own* decision log (the matched
+   population prior, every recorded outcome in that category, whether the
+   question is already in your decision debt), pins the numbers, and hands
+   Claude that context to write back: the real question under the question,
+   what's at stake, the thing you keep circling, your options, and a
+   recommendation — every claim grounded in a number or a past decision
+   from the retrieved context.
+2. **The agent loop** (`backend/app/agent.py`) — Choicely runs its decision
+   backlog like an agent. Claude triages every open decision (*answer it
+   now / keep watching / leave it alone*), writes the check-in questions in
+   context, and the whole loop — auto-resolve, check-ins, pattern
+   detection — is surfaced as a visible activity log on the **Agent** tab.
+3. **The companion voice around every decision** — when you log one,
+   `backend/app/advice.py` has Claude write the friend-who-knows-your-patterns
+   note under the card (the real tradeoff, what your history says, one
+   concrete next step); when you record how it went, `backend/app/reaction.py`
+   has Claude react the way a friend would — a genuine nod when it went well,
+   real perspective (never a lecture) when it didn't.
+4. **Weekly reflection ("Choicely reflections"), classification, the
+   game-theory breakdown, and the crisis screen** each call Claude too (see
+   below).
+
+Every call goes through one seam (`backend/app/llm.py`) with a SQLite
+response cache (bounded demo spend) and a heuristic fallback, so the app is
+fully functional with no key — it's just sharper with one.
 
 ## Run it
 
@@ -73,6 +108,22 @@ setx ANTHROPIC_API_KEY "sk-ant-..."
 
 ## Wellness layer (hackathon push)
 
+- **Grounded decision debrief** (`backend/app/debrief.py`, `POST /debrief`,
+  `frontend/src/Debrief.jsx`): the "…or talk through one you're stuck on"
+  mode in the composer. Free-text in; a structured, history-grounded read
+  out (real question / what's at stake / what you're avoiding / options /
+  recommendation), with a strip of the relevant decisions from your own log
+  and a "log this decision" button. Read-only — it doesn't log anything
+  until you ask it to. Retrieval + pinned numbers here, synthesis by Claude
+  (heuristic assembly without a key).
+- **Agent activity** (`backend/app/agent.py`, `GET /agent/activity`,
+  `frontend/src/AgentActivity.jsx`): the **Agent** tab. A running log of
+  what Choicely did on its own — answered a decision outright, raised or
+  held a check-in, closed a loop, spotted a pattern — plus a live triage of
+  the open backlog (Claude decides, per decision: answer now / keep
+  watching / leave it alone). Check-in questions are phrased by Claude in
+  context when a key is set. The activity log is rebuilt from history by
+  the demo seed so the tab is populated on a fresh demo.
 - **Regret forecast** (`backend/app/insights.py`, `GET /insights`,
   `frontend/src/RegretForecast.jsx`): for every category with recorded
   outcomes, shows a plain horizontal scale (0-100%) with a tick for the
@@ -230,17 +281,18 @@ way a real user's data would.
 - Decision debt dashboard (`backend/app/debt.py`, `GET /dashboard`):
   matches new decisions against past unresolved ones by word-overlap
   similarity; decisions logged 2+ times with no outcome ever recorded show
-  up as a reopened-without-deciding callout.
+  up as a logged-repeatedly-without-deciding callout.
 - Auto-resolve: once confidence hits 1.0 for a category and the regret rate
   is strongly one-sided (>=65% or <=20%), the system answers directly
   instead of predicting a probability, e.g. "You always regret skipping
   meals, so: eat something."
-- Demo seed data: `backend/seed_demo_data.py` backfills three things so all
-  of the above are demoable live without waiting on real elapsed time:
-  5 "skip the workout" decisions (confidence 50%, shows blending mid-flight),
-  10 "skip breakfast" decisions mostly regretted (confidence 100%, triggers
-  auto-resolve), and 4 repeated undecided "should I quit this club" entries
-  (shows up on the decision-debt dashboard).
+- Demo seed data: `backend/seed_demo_data.py` backfills three short,
+  easy-to-narrate stories so all of the above are demoable live without
+  waiting on real elapsed time: 10 "skip breakfast" decisions mostly
+  regretted (confidence 100%, triggers auto-resolve), 5 "go out even though
+  tired" decisions mostly good (the opposite story — history overrides the
+  prior in the good direction), and 4 repeated undecided "should I quit this
+  club" entries (shows up on the decision-debt dashboard).
   Run it once before demoing: `python seed_demo_data.py` (from `backend/`,
   with the venv active) -- delete `backend/data/choicely.db` first for a
   clean slate, since it re-seeds on top of whatever's already there.

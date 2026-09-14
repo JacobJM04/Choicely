@@ -98,7 +98,23 @@ export default function TrackRecord({ refreshKey }) {
   }, [refreshKey])
 
   if (error) return <p className="error">{error}</p>
-  if (!data) return <p className="empty-state">Loading…</p>
+  if (!data) {
+    return (
+      <div className="tr" aria-busy="true">
+        <div className="tr-intro">
+          <div className="skeleton skeleton-line" style={{ width: '35%', height: '1.2em' }} />
+          <div className="skeleton skeleton-line" style={{ width: '75%' }} />
+        </div>
+        {[0, 1].map((i) => (
+          <div key={i} className="skeleton-card">
+            <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+            <div className="skeleton skeleton-block" style={{ height: 60, margin: '14px 0' }} />
+            <div className="skeleton skeleton-line" style={{ width: '80%' }} />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   if (data.verdict === 'early') {
     return (
